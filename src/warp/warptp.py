@@ -29,7 +29,7 @@ def main(args):
   global logs
   logs = getLogs("d",curve)
   goHorizon()
-  #goShifts()
+  goShifts()
   #goWarping()
   #goErrors()
   #goResample()
