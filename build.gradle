@@ -1,0 +1,24 @@
+apply plugin: 'java'
+
+defaultTasks 'compileJava', 'jar'
+
+description = "Loralee's research"
+jar.baseName = 'lfw'
+
+sourceSets {
+  main {
+    output.classesDir = 'build/classes'
+    output.resourcesDir = output.classesDir
+    java {
+       srcDir 'src'
+       exclude '**/new/**','**/old/**'
+     }
+   }
+}
+
+dependencies {
+  compile fileTree('../../jtk/build/libs') // for edu_mines_jtk.jar
+  compile fileTree('../../jtk/libs') // jars provided with the Mines JTK
+  compile fileTree('../../idh/bench/build/libs') // for bench.jar
+  compile fileTree('libs') // jars used in research, not in the Mines JTK
+}
