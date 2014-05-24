@@ -16,9 +16,7 @@ I have the corresponding src folder (for our source code), the build folder
 contains the .class files corresponding to the .java files, and
 the other folders and files are for building the .java files with gradle.
 
-Inside the src folder, there is a tpt folder and a warpt folder. The tpt folder contains files for importing well logs, seismic, and horizons. You only need WellLog.java for well log correlation. The warpt folder contains our main research.
-
-The wlw folder in the warpt folder contains files that were used to make images for the CWP sponsor's report and for slides presented at the 2014 CWP sponsor's meeting.
+Inside the src folder, there is a warpt folder which contains our main research. The wlw folder in the warpt folder contains files for current research and that were used to make images for the CWP sponsor's report and for slides presented at the 2014 CWP sponsor's meeting.
 ########################################################################################
 
 #########Building our code##############################################################
@@ -33,10 +31,9 @@ JTK” section in the readme.txt file in the mines jtk.
 #########Research#######################################################################
 Inside the warpt folder, you will find files pertaining to our research.
 
-In each file, there should be a small description of the purpose of why the file exists
-in the first few lines of the file.
+In each file, there should be a small description of the purpose of why the file exists in the first few lines of the file.
 
-The wlwDemo.py requires data from Teapot Dome...
+vlogs.txt contains data for six velocity logs from Teapot Dome, provided by Rocky Mountain Oilfield Test Center, to be used with wlwDemo.py. A description of how the file was made is included in the first few lines of the file. 
 
 If you have data that you want to run through the existing scripts, modify the methods that deal with extracting the data or feel free to create your own method.
 
