@@ -31,7 +31,7 @@ JTK” section in the readme.txt file in the mines jtk.
 #########Research#######################################################################
 Inside the warpt folder, you will find files pertaining to our research.
 
-In each file, there should be a small description of the purpose of why the file exists in the first few lines of the file.
+A demo for using WellLogWarping.java is included in wlwDemo.py.
 
 vlogs.txt contains data for six velocity logs from Teapot Dome, provided by Rocky Mountain Oilfield Test Center, to be used with wlwDemo.py. A description of how the file was made is included in the first few lines of the file. 
 
