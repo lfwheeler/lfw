@@ -22,7 +22,6 @@ from edu.mines.jtk.mosaic import *
 from edu.mines.jtk.util import *
 from edu.mines.jtk.util.ArrayMath import *
 
-from tpt import *
 from warpt import *
 
 ##########################################################################

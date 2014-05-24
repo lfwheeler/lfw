@@ -31,10 +31,10 @@ def main(args):
   logs = getLogs("d",curve)
   #goRGT()
   #goHorizon()
-  #goShifts()
+  goShifts()
   #goWarping()
   #goErrors()
-  goErrorsIJ()
+  #goErrorsIJ()
   #goResample()
   #goSort()
   #goMesh()
@@ -196,11 +196,11 @@ def goHorizon():
 
 def goShifts():
   sz,fs = resample(logs,curve)
-  fs = [fs[0],fs[4]]
+  #fs = [fs[0],fs[4]]
   #fs = [fs[ 2],fs[ 3],fs[ 6],fs[ 7],fs[ 8],fs[10],fs[12],
   #      fs[16],fs[18],fs[21],fs[22],fs[23],fs[24],
   #      fs[25],fs[26],fs[27],fs[28],fs[29]] # shortest velocity logs
-  #fs = [fs[0],fs[4],fs[9],fs[14],fs[17],fs[20]] # deepest 6 velocity logs
+  fs = [fs[0],fs[4],fs[9],fs[14],fs[17],fs[20]] # deepest 6 velocity logs
   #fs = [fs[0],fs[9]]
   #fs = [fs[0],fs[4],fs[9],fs[11],fs[14],fs[17],fs[20]]
   #fs = [fs[ 1],fs[ 2],fs[ 3],fs[ 4],fs[ 7],
@@ -346,9 +346,7 @@ def goWarping():
   if curve=="g":
     freplace = 30.0
     vlabel = "Gamma ray (API)"
-  c = 0
   for pair in pairs:
-    c +=1
     jf,jg = pair[0],pair[1]
     fi,gj = fs[jf],fs[jg]
     e = wlw.computeErrors(fi,gj)
@@ -1030,6 +1028,17 @@ def removeZeros(f):
   #ft = zerofloat(c)
   ft = copy(c,fs)
   return i,ft
+
+def writeFile(va):
+  nz = len(va[0])
+  nl = len(va)
+  ofile = open('vlogs.txt','r+')
+  for z in range(nz):
+    ofile.write(str(z)+'\t'+str(va[0][z])+'\t'+str(va[1][z])+'\t'+
+                str(va[2][z])+'\t'+str(va[3][z])+'\t'+str(va[4][z])+'\t'+
+                str(va[5][z])+'\n')
+  ofile.close()
+
 
 
 #############################################################################
