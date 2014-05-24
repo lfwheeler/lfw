@@ -1,4 +1,4 @@
-package tp;
+package tpt;
 
 public class IntList {
   public int n;

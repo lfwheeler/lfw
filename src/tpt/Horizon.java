@@ -1,4 +1,4 @@
-package tp;
+package tpt;
 
 import java.io.*;
 

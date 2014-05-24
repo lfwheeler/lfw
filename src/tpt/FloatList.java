@@ -1,4 +1,4 @@
-package tp;
+package tpt;
 
 public class FloatList {
   public int n;

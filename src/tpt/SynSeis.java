@@ -1,4 +1,4 @@
-package tp;
+package tpt;
 
 import edu.mines.jtk.dsp.*;
 import static edu.mines.jtk.util.ArrayMath.*;

@@ -1,4 +1,4 @@
-package tp;
+package tpt;
 
 import static java.lang.Math.*;
 

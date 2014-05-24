@@ -1,4 +1,4 @@
-package tp;
+package tpt;
 
 import java.io.FileInputStream;
 import java.io.IOException;

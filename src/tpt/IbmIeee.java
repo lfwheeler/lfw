@@ -1,4 +1,4 @@
-package tp;
+package tpt;
 
 public class IbmIeee {
   public static void ieeeToFloat(int[] ieee, float[] f) {
