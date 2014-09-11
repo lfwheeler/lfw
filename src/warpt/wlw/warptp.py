@@ -22,7 +22,7 @@ from edu.mines.jtk.util.ArrayMath import *
 from tp import *
 from warpt import *
 
-wlw = WellLogWarping()
+wlw = WellLogWarpingT()
 curve = "v"
 logs = None
 
@@ -38,6 +38,7 @@ def main(args):
   #goResample()
   #goSort()
   #goMesh()
+  #goCreateLog()
 
 def goRGT():
   sz,fs = resample(logs,curve)
@@ -213,13 +214,11 @@ def goShifts():
   #      fs[34],fs[35],fs[37],fs[38],fs[39],
   #      fs[45],fs[50],fs[68]] # deepest 13 porosity logs
   nk,nl = len(fs[0]),len(fs)
-  """
   wlw.setPowError(0.25)
   wlw.setMaxShift(250)
   s = wlw.findShifts(fs)
   gs = wlw.applyShifts(fs,s)
   s = mul(1000*sz.delta,s) # convert shifts to m
-  """
   freplace = 2.0
   fclips = (2.0,6.0)
   cblabel = "Velocity (km/s)"
@@ -236,32 +235,30 @@ def goShifts():
     fclips = (30.0,160.0)
     cblabel = "Gamma ray (API)"
   fs = wlw.replaceNulls(fs,freplace)
-  """
   gs = wlw.replaceNulls(gs,freplace)
-  """
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-  #sp.setSize(650,550)
-  sp.setSize(700,380) # for slides
-  sp.setSize(448,874) # for slides - each log
+  sp.setSize(650,550)
+  #sp.setSize(700,380) # for slides
+  #sp.setSize(448,874) # for slides - each log
   #sp.setSize(617,376)
   sp.setVLabel("Depth (km)")
   sp.setHLabel("Log index")
   sp.addColorBar(cblabel)
-  sp.setVLimits(0.892,1.142)
+  #sp.setVLimits(0.892,1.142)
   sp.plotPanel.setColorBarWidthMinimum(90)
   pv = sp.addPixels(sz,Sampling(nl,1,1),fs)
   pv.setInterpolation(PixelsView.Interpolation.NEAREST)
   pv.setColorModel(cjet)
   pv.setClips(fclips[0],fclips[1])
-  sp.setFontSizeForSlide(9.5/11.0,1.0,16.0/9.0)
+  #sp.setFontSizeForSlide(9.5/11.0,1.0,16.0/9.0)
   #sp.setFontSizeForPrint(8.0,255.6)
-  sp.paintToPng(720.0,3.55,"original.png")
+  #sp.paintToPng(720.0,3.55,"original.png")
   #sp.setFontSizeForPrint(8.0,234.5)
   #sp.paintToPng(720.0,3.25,"original.png")
-  """
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   #sp.setSize(650,508) # zoom & werror
-  sp.setSize(700,380) # for slides
+  #sp.setSize(700,380) # for slides
+  sp.setSize(650,550)
   #sp.setSize(617,376)
   #sp.setSize(650,550)
   sp.setVLabel("Relative geologic time")
@@ -285,6 +282,7 @@ def goShifts():
   #sp.setFontSizeForPrint(8.0,222.0)
   #sp.paintToPng(720.0,3.08,"zoomv.png")
   #sp.paintToPng(720.0,3.08,"werror.png")
+  """
   sp1 = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   sp1.setSize(650,550)
   sp1.setVLabel("Depth (km)")
@@ -904,6 +902,179 @@ def goMesh():
   sp.add(tmv)
   #sp.setFontSizeForPrint(8.0,222.0)
   #sp.paintToPng(720.0,3.08,"mesh.png")
+
+def goCreateLog():
+  el = 1000 # end sample of short log
+  sz,fs = resample(logs,curve)
+  f1 = fs[4]
+  nt = len(f1)
+  r1 = zerofloat(nt)
+  r2 = zerofloat(nt)
+  r3 = zerofloat(nt)
+  r21 = zerofloat(nt)
+  r31 = zerofloat(nt)
+  r32 = zerofloat(nt)
+  kr = zerofloat(nt)
+  f2 = zerofloat(nt)
+  f3 = zerofloat(nt)
+  ff = zerofloat(nt,4)
+  ff[0] = f1
+  for t in range(nt):
+    r1[t] = 30*cos(t*PI/180)-30*sin(t*PI/180)
+    r2[t] = -30*cos(t*PI/180)
+    r3[t] = 30*sin(t*PI/180)
+  """
+    r1[t] = -sin(3*t*PI/180)*30
+    r2[t] = sin(2*t*PI/180)*cos(t*PI/180)*30
+    r3[t] = cos(2*t*PI/180)*sin(t*PI/180)*30
+  for t in range(el,nt):
+    r1[t] = (cos(t*PI/180)*30)
+    r2[t] = -(cos(t*PI/180)*30)
+  """
+  f2 = wlw.applyRGTShifts(f1,r2)
+  f3 = wlw.applyRGTShifts(f1,r3)
+  f1 = wlw.applyRGTShifts(f1,r1)
+  for t in range(el,el+200):
+    f3[t] = -999.2500
+  for t in range(nt):
+    r21[t] = r2[t]-r1[t]
+    r31[t] = r3[t]-r1[t]
+    r32[t] = r3[t]-r2[t]
+  """
+  freplace = 2.0
+  f1 = wlw.replaceNulls(f1,freplace)
+  f2 = wlw.replaceNulls(f2,freplace)
+  f3 = wlw.replaceNulls(f3,freplace)
+  sp = SimplePlot()
+  pv1 = sp.addPoints(r1)
+  pv1 = sp.addPoints(r2)
+  pv1 = sp.addPoints(r3)
+  pv1 = sp.addPoints(f1)
+  pv2 = sp.addPoints(f2)
+  pv2.setLineColor(Color.RED)
+  pv3 = sp.addPoints(f3)
+  pv3.setLineColor(Color.BLUE)
+  """
+
+  """
+  fs = [f1,f2,f3]
+  nk,nl = len(fs[0]),len(fs)
+  wlw.setPowError(0.25)
+  wlw.setMaxShift(250)
+  s = wlw.findShifts(fs)
+  gs = wlw.applyShifts(fs,s)
+  s = mul(1000*sz.delta,s) # convert shifts to m
+  freplace = 2.0
+  fclips = (2.0,6.0)
+  cblabel = "Velocity (km/s)"
+  if curve=="d":
+    freplace = 1.0
+    fclips = (2.0,2.8)
+    cblabel = "Density (g/cc)"
+  if curve=="p":
+    freplace = 0.0
+    fclips = (0.0,0.45)
+    cblabel = "Porosity"
+  if curve=="g":
+    freplace = 30.0
+    fclips = (30.0,160.0)
+    cblabel = "Gamma ray (API)"
+  fs = wlw.replaceNulls(fs,freplace)
+  gs = wlw.replaceNulls(gs,freplace)
+  ff[1] = gs[0]
+  ff[2] = gs[1]
+  ff[3] = gs[2]
+  sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
+  #sp.setSize(650,550)
+  sp.setSize(700,380) # for slides
+  sp.setVLabel("Depth (km)")
+  sp.setHLabel("Log index")
+  sp.addColorBar(cblabel)
+  sp.plotPanel.setColorBarWidthMinimum(90)
+  pv = sp.addPixels(sz,Sampling(nl,1,1),fs)
+  pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+  pv.setColorModel(cjet)
+  pv.setClips(fclips[0],fclips[1])
+
+  sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
+  #sp.setSize(650,508) # zoom & werror
+  sp.setSize(700,380) # for slides
+  sp.setVLabel("Relative geologic time")
+  sp.setHLabel("Log index")
+  sp.addColorBar(cblabel)
+  sp.plotPanel.setColorBarWidthMinimum(90)
+  pv = sp.addPixels(ff)
+  pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+  pv.setColorModel(cjet)
+  pv.setClips(fclips[0],fclips[1])
+
+  sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
+  #sp.setSize(650,508) # zoom & werror
+  sp.setSize(700,380) # for slides
+  sp.setVLabel("Relative geologic time")
+  sp.setHLabel("Log index")
+  sp.addColorBar(cblabel)
+  sp.plotPanel.setColorBarWidthMinimum(90)
+  pv = sp.addPixels(sz,Sampling(nl,1,1),gs)
+  pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+  pv.setColorModel(cjet)
+  pv.setClips(fclips[0],fclips[1])
+  """
+
+    
+  pairs = [(0,1),(1,2),(0,2)]
+  f = [f1,f2,f3]
+  wlw.setPowError(0.25)
+  wlw.setMaxShift(250)
+  for pair in pairs:
+    ia,ib = pair[0],pair[1]
+    e = wlw.computeErrors(f[ia],f[ib])
+    wlw.interpolateOddErrors(e)
+    nl,nk = len(e[0]),len(e)
+    lmax = (nl-1)/2
+    lmin = -lmax
+    sl = Sampling(nl,1,lmin)
+    sk = Sampling(nk,1,0)
+    title = "("+str(ia)+","+str(ib)+")"
+    sp = SimplePlot()
+    sp.setSize(750,518)
+    sp.setTitle(title)
+    sp.setHLabel("Depth index k")
+    sp.setVLabel("Lag index l")
+    sp.setHFormat("%5f")
+    sp.addColorBar("e[k,l]")
+    pv = sp.addPixels(sk,sl,transpose(e))
+    #pv.setColorModel(cjet)
+    pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+    pv.setPercentiles(0,100)
+
+    sp1 = SimplePlot()
+    sp1.setSize(750,518)
+    sp1.setTitle(title)
+    sp1.setHLabel("Depth index k")
+    sp1.setVLabel("Lag index l")
+    sp1.setHFormat("%5f")
+    sp1.addColorBar("e[k,l]")
+    pv = sp1.addPixels(sk,sl,transpose(e))
+    #pv.setColorModel(cjet)
+    pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+    pv.setPercentiles(0,100)
+    d = wlw.accumulateErrors(e)
+    wlw.interpolateOddErrors(d)
+    kw,lw = wlw.findWarping(d)
+    kw = wlw.toFloat(kw)
+    lw = wlw.toFloat(lw)
+    for t in range(nt):
+      kr[t] = 2*t
+    pv1 = sp1.addPoints(kw,lw)
+    pv1.setLineColor(Color.RED)
+    pv2 = sp1.addPoints(kr,r32)
+    pv2.setLineColor(Color.BLUE)
+    #pv1.setLineStyle(PointsView.Line.DASH)
+    pv1.setLineWidth(1.0)
+
+
+  
 
 #############################################################################
 # utilities

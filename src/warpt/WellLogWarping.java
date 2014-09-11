@@ -393,6 +393,7 @@ public class WellLogWarping {
   public float[][] findShifts(float[][] fs) {
     int nk = fs[0].length;
     int nl = fs.length;
+    boolean[][] nls = new boolean[nl][nk];
 
     // For each and every pair of logs, find all warping index pairs (i,j).
     // Include with each pair (i,j) an alignment error abs(f[i]-g[j]).
@@ -415,6 +416,11 @@ public class WellLogWarping {
         }
         ps[ip] = new Pairs(il,jl,is,js,ws);
         np += n;
+      }
+      for (int k=0; k<nk; ++k) {
+        if (fs[il][k] == _vnull) {
+          nls[il][k] = true;
+        }
       }
     }
 
@@ -457,14 +463,16 @@ public class WellLogWarping {
     float[][] s = new float[nl][nk]; // for the shifts
     makeRhs(ps,r);
     A a = new A(ps);
-    M m = new M(sigma,nk,nl);
+    M m = new M(sigma,nk,nl,nls);
     CgSolver cs = new CgSolver(small,niter);
     VecArrayFloat2 vr = new VecArrayFloat2(r);
     VecArrayFloat2 vs = new VecArrayFloat2(s);
     cs.solve(a,m,vr,vs);
     //cs.solve(a,vr,vs);
     //m.test(s);
-    invertShifts(s);
+    interpolateShifts(nls,s);
+    invertshifts(nls,s);
+    m = new M(sigma,nk,nl,nls);
     m.subtractMeanOverLogs(s);
     return s;
   }
@@ -765,6 +773,81 @@ public class WellLogWarping {
     }
     private Pairs[] _ps;
   }
+  public static class M implements CgSolver.A {
+    M(double sigma, int nk, int nl, boolean[][] nls) {
+      _ref = new RecursiveExponentialFilter(sigma);
+      _ref.setEdges(RecursiveExponentialFilter.Edges.OUTPUT_ZERO_SLOPE);
+      _s = new float[nk];
+      _nls = nls;
+    }
+    public void apply(Vec vx, Vec vy) {
+      float[][] x = ((VecArrayFloat2)vx).getArray();
+      float[][] y = ((VecArrayFloat2)vy).getArray();
+      int nk = x[0].length;
+      int nl = x.length;
+      copy(x,y);
+      subtractMeanOverLogs(y);
+      for (int l=0; l<nl; ++l) {
+        for (int k=0; k<nk; ++k) {
+          int ks = 0;
+          while(k<nk && !_nls[l][k]) {
+            ks++;
+            k++;
+          }
+          if (ks!=0) {
+            float[] t = new float[ks];
+            for (int kk=0, kj=k-ks; kk<ks; ++kk, ++kj) {
+              t[kk] = y[l][kj];
+            }
+            _ref.apply1(t,t);
+            for (int kk=0, kj=k-ks; kk<ks; ++kk, ++kj) {
+              y[l][kj] = t[kk];
+            }
+          }
+        }
+      }
+      //_ref.apply1(y,y);
+      subtractMeanOverLogs(y);
+    }
+    public void subtractMeanOverLogs(float[][] x) {
+      int nk = x[0].length;
+      int nl = x.length;
+      float[] c = new float[nk];
+      zero(_s);
+      zero(c);
+      for (int il=0; il<nl; ++il) {
+        for (int ik=0; ik<nk; ++ik) {
+          if (!_nls[il][ik]) {
+            _s[ik] += x[il][ik];
+            c[ik]  += 1f;
+          }
+        }
+      }
+      for (int il=0; il<nl; ++il) {
+        for (int ik=0; ik<nk; ++ik) {
+          if (c[ik]>0 && !_nls[il][ik]) {
+            x[il][ik] -= _s[ik]/c[ik];
+          } else { x[il][ik] = 0; }
+        }
+      }
+    }
+    public void test(float[][] x) {
+      int nk = x[0].length;
+      int nl = x.length;
+      zero(_s);
+      for (int il=0; il<nl; ++il) {
+        for (int ik=0; ik<nk; ++ik) {
+          _s[ik] += x[il][ik];
+        }
+      }
+      trace("M.test: sum="); dump(_s);
+    }
+    private RecursiveExponentialFilter _ref;
+    float[] _s; // used to efficiently compute sum over logs
+    boolean[][] _nls; 
+  }
+  
+  /*
   private static class M implements CgSolver.A {
     M(double sigma, int nk, int nl) {
       _ref = new RecursiveExponentialFilter(sigma);
@@ -809,6 +892,7 @@ public class WellLogWarping {
     private RecursiveExponentialFilter _ref;
     float[] _s; // used to efficiently compute sum over logs
   }
+  */
   private static class Mold implements CgSolver.A {
     Mold(double sigma, int nk, int nl) {
       _ref = new RecursiveExponentialFilter(sigma);
@@ -1007,6 +1091,43 @@ public class WellLogWarping {
         s[i1] = s[i1-1]-0.999f;
     }
   }
+  private static void invertShiftsNull(
+    InverseInterpolator ii, boolean[] nls, float[] u, float[] t, float[] s) 
+  {
+    cleanShifts(s);
+    int n1 = s.length;
+    boolean[] tnls = new boolean[n1];
+    for (int i1=0; i1<n1; ++i1) {
+      s[i1] += u[i1];
+    }
+    ii.invert(s,t);
+    float tmin = -n1;
+    float tmax = n1+n1;
+    for (int i1=0; i1<n1; ++i1) {
+      if (t[i1]<tmin) t[i1] = tmin;
+      if (t[i1]>tmax) t[i1] = tmax;
+      s[i1] = u[i1]-t[i1];
+      int zi = (int)(t[i1] + 0.5f); ///// diff interp?
+      if (nls[zi]) {
+        tnls[i1] = true;
+      }
+    }
+    for (int i1=0; i1<n1; ++i1) {
+      nls[i1] = tnls[i1];
+    }
+  }
+
+  private static void invertshifts(boolean[][] nls, float[][] s) {
+    int n1 = s[0].length;
+    int n2 = s.length;
+    float[] u = rampfloat(0.0f,1.0f,n1);
+    float[] t = zerofloat(n1);
+    InverseInterpolator ii = new InverseInterpolator(n1,n1);
+    for (int i2=0; i2<n2; ++i2)
+      invertShiftsNull(ii,nls[i2],u,t,s[i2]);
+  }
+  
+  /*
   private static void invertShifts(
     InverseInterpolator ii, float[] u, float[] t, float[] s) 
   {
@@ -1032,6 +1153,35 @@ public class WellLogWarping {
     for (int i2=0; i2<n2; ++i2)
       invertShifts(ii,u,t,s[i2]);
   }
+  */
+
+  private static void interpolateShifts(boolean[][] nls, float[][] s) {
+    int nk = s[0].length;
+    int nl = s.length;
+    int[][] mm = new int[nl][2];
+    int klo,khi,fk,lk;
+    for (int l=0; l<nl; ++l) {
+      int k=0;
+      while (k<nk && nls[l][k]) k++;
+      mm[l][0] = k;
+      k=nk-1;
+      while (k>=0 && nls[l][k]) k--;
+      mm[l][1] = k;
+    }
+    for (int l=0; l<nl; ++l) {
+      fk = mm[l][0];
+      lk = mm[l][1];
+      for (int k=fk; k<=lk; ++k) {
+        if (nls[l][k]) {
+          klo = khi = k;
+          while (nls[l][klo] && klo>fk) klo -= 1;
+          while (nls[l][khi] && khi<lk) khi += 1; 
+          s[l][k] = ((khi-k)*(klo+s[l][klo]) + (k-klo)*(khi+s[l][khi]))/(khi-klo) - k;
+        }
+      }
+    }
+  }
+
 
   private static void trace(String s) {
     System.out.println(s);
