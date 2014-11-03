@@ -11,19 +11,11 @@ TODO: in preconditioner M, subtract horizontal average of shifts s
 */
 
 import java.util.Random;
-import java.awt.Color;
 
 import edu.mines.jtk.dsp.RecursiveExponentialFilter;
 import edu.mines.jtk.dsp.Sampling;
 import edu.mines.jtk.util.MedianFinder;
 import static edu.mines.jtk.util.ArrayMath.*;
-import edu.mines.jtk.mosaic.SimplePlot;
-import edu.mines.jtk.mosaic.PlotPanel;
-import edu.mines.jtk.mosaic.PointsView;
-import edu.mines.jtk.mosaic.PlotFrame;
-import edu.mines.jtk.mosaic.PixelsView;
-import edu.mines.jtk.dsp.Sampling;
-import edu.mines.jtk.awt.ColorMap;
 
 
 import dnp.CgSolver;
