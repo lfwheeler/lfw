@@ -11,11 +11,20 @@ TODO: in preconditioner M, subtract horizontal average of shifts s
 */
 
 import java.util.Random;
+import java.awt.Color;
 
 import edu.mines.jtk.dsp.RecursiveExponentialFilter;
 import edu.mines.jtk.dsp.Sampling;
 import edu.mines.jtk.util.MedianFinder;
 import static edu.mines.jtk.util.ArrayMath.*;
+import edu.mines.jtk.mosaic.SimplePlot;
+import edu.mines.jtk.mosaic.PlotPanel;
+import edu.mines.jtk.mosaic.PointsView;
+import edu.mines.jtk.mosaic.PlotFrame;
+import edu.mines.jtk.mosaic.PixelsView;
+import edu.mines.jtk.dsp.Sampling;
+import edu.mines.jtk.awt.ColorMap;
+
 
 import dnp.CgSolver;
 import dnp.InverseInterpolator;
@@ -164,7 +173,7 @@ public class WellLogWarping {
     int k=kmin,km1,km2;
     for (int l=lmin,ll=l-lmin; l<=lmax; ++l,++ll) {
       if ((k+l)%2==0)
-        d[0][ll] = e[0][ll];
+        d[k][ll] = e[k][ll];
     }
 
     // Special case: k = kmin+1.
@@ -394,6 +403,14 @@ public class WellLogWarping {
     int nk = fs[0].length;
     int nl = fs.length;
     boolean[][] nls = new boolean[nl][nk];
+    float[][] nnls = new float[nl][nk];
+    float[] ni = new float[nk];
+    float[] nj = new float[nk];
+    for (int l=0; l<nl; ++l) {
+      for (int k=0; k<nk; ++k) {
+          nls[l][k] = true;
+      }
+    }
 
     // For each and every pair of logs, find all warping index pairs (i,j).
     // Include with each pair (i,j) an alignment error abs(f[i]-g[j]).
@@ -409,71 +426,134 @@ public class WellLogWarping {
         int[][] ij = convertWarping(kl,fi,gj);
         int[] is = ij[0];
         int[] js = ij[1];
+        zero(ni);
+        zero(nj);
         int n = is.length;
+        for (int k=0; k<n; ++k) {
+          ni[is[k]] += 1.0f;
+          nj[js[k]] += 1.0f;
+          nls[il][is[k]] = false;
+          nls[jl][js[k]] = false;
+          nnls[il][is[k]] += 1.0f;
+          nnls[jl][js[k]] += 1.0f;
+        }
         float[] ws = new float[n];
         for (int k=0; k<n; ++k) {
-          ws[k] = abs(fi[is[k]]-gj[js[k]]);
+          //ws[k] = 1.0f/max(nnls[il][is[k]],nnls[jl][js[k]]);
+          //ws[k] = min(nnls[il][is[k]],nnls[jl][js[k]])/(nl-1);
+          //ws[k] = abs(fi[is[k]]-gj[js[k]]);
+          ws[k] = 1.0f;
         }
         ps[ip] = new Pairs(il,jl,is,js,ws);
         np += n;
-      }
-      for (int k=0; k<nk; ++k) {
-        if (fs[il][k] == _vnull) {
-          nls[il][k] = true;
-        }
-      }
-    }
-
-    // Find the median of all alignment errors.
-    float[] wp = new float[np];
-    np = 0;
-    for (Pairs p:ps) {
-      float[] ws = p.ws;
-      int nw = ws.length;
-      for (int iw=0; iw<nw; ++iw) {
-        wp[np++] = ws[iw];
-      }
-    }
-    MedianFinder mf = new MedianFinder(np);
-    float wmed = mf.findMedian(wp);
-    trace("np="+np+" wmed="+wmed);
-    wp = null;
-
-    // Use the median to compute weights from alignment errors. Each pair
-    // (i,j) corresponds to two linear equations with two shifts. The weights
-    // are used below in a least-squares solution of many such equations.
-    // Pairs (i,j) with smaller alignment errors get more weight.
-    // NOTE: in current experiments, constant weights seem to work best!
-    for (Pairs p:ps) {
-      float[] ws = p.ws;
-      int nw = ws.length;
-      float wscl = -0.02f/wmed;
-      for (int iw=0; iw<nw; ++iw) {
-        //ws[iw] = exp(wscl*ws[iw]);
-        //ws[iw] = max(1.0f-wscl*ws[iw],0.0f);
-        ws[iw] = 1.0f;
       }
     }
 
     // Use CG to solve least-squares equations for shifts s.
     float sigma = 10.0f;
     float small = 0.005f;
-    int niter = 1000;
+    int niter = 5;
     float[][] r = new float[nl][nk]; // for right-hand side
     float[][] s = new float[nl][nk]; // for the shifts
     makeRhs(ps,r);
     A a = new A(ps);
-    M m = new M(sigma,nk,nl,nls);
-    CgSolver cs = new CgSolver(small,niter);
+    //Ml m = new Ml(sigma,nk,nl,nls);
     VecArrayFloat2 vr = new VecArrayFloat2(r);
     VecArrayFloat2 vs = new VecArrayFloat2(s);
-    cs.solve(a,m,vr,vs);
-    //cs.solve(a,vr,vs);
-    //m.test(s);
-    interpolateShifts(nls,s);
-    invertshifts(nls,s);
-    m = new M(sigma,nk,nl,nls);
-    m.subtractMeanOverLogs(s);
+    float diff = FLT_MAX;
+    float[][] sold = new float[nl][nk]; 
+    float thresh = 1.0f;
+    //float thresh = 10.0f;
+    
+    while (diff>thresh) {
+    //for (int i1=0; i1<5; ++i1) {
+      copy(s,sold);
+      CgSolver cs = new CgSolver(small,niter);
+      if (diff < FLT_MAX) {
+        invertShiftsR2S(s);
+        vs = new VecArrayFloat2(s);
+      }
+      cs.solve(a,vr,vs);
+      interpolateShifts(nls,s);
+
+      float[][] zt = new float[nl][nk];
+      for (int il=0; il<nl; ++il) {
+        for (int ik=0; ik<nk; ++ik) {
+          zt[il][ik] = ik+s[il][ik];
+        }
+      }
+
+      invertT2Z(zt); // gives z(t)
+
+      for (int il=0; il<nl; ++il) {
+        for (int ik=0; ik<nk; ++ik) {
+          if (zt[il][ik]>=nk){
+            float sk = ik-1-zt[il][ik-1];
+            zt[il][ik] = ik-sk;
+          }
+        }
+      }
+
+      float[] zb = new float[nk];
+      for (int il=0; il<nl; ++il) {
+        for (int ik=0; ik<nk; ++ik) {
+          zb[ik] += zt[il][ik]/nl;
+        }
+      }
+
+      invertZ2T(zb); // gives tbar
+
+      for (int il=0; il<nl; ++il) {
+        for (int ik=0; ik<nk; ++ik) {
+          int zk = (int)zb[ik];
+          if (0<=zk && zk<nk) {
+            if (zk<nk-1) {
+              float dz = zb[ik]-zk;
+              s[il][ik] = (1.0f-dz)*(ik-zt[il][zk])+dz*(ik-zt[il][zk+1]);
+            } else {
+              s[il][ik] = ik - zt[il][zk];
+            }
+          } else if (zk<0) {
+            int jk=ik;
+            while(zk<0) {++zk; ++jk;}
+            s[il][ik] = jk - zt[il][zk];
+          } else {
+            int jk=ik;
+            while(zk>=nk) {--zk; --jk;}
+            s[il][ik] = jk - zt[il][zk];
+          }
+        }
+      }
+      float avd = 0;
+      int cct = 0;
+      for (int il=0; il<nl; ++il) {
+        for (int ik=0; ik<nk; ++ik) {
+          if (nnls[il][ik]>0) {
+            avd += abs(s[il][ik] - sold[il][ik]);
+            ++cct;
+          }
+        }
+      }
+
+      diff = avd/cct;
+      System.out.println("diff="+diff);
+    }
+
+  /*
+      // test that sum of shifts is zero
+      float[] ss = new float[nk];
+      for (int il=0; il<nl; ++il) {
+        for (int ik=0; ik<nk; ++ik) {
+          ss[ik] += s[il][ik];
+        }
+      }
+      for (int ik=0; ik<nk; ++ik) {
+        if (ss[ik]>0.1f || ss[ik]<-0.1f) {
+          System.out.println("ik="+ik+" "+ss[ik]);
+        }
+      }
+  */
+
     return s;
   }
 
@@ -502,18 +582,6 @@ public class WellLogWarping {
         if (0<=jk && jk<nk && f[il][jk]!=_vnull) {
           g[il][ik] = f[il][jk];
         }
-        /* 
-        // Linear interpolation. Smears outliers!
-        int jk = (int)zk;
-        if (0<=jk && jk<nk && f[il][jk]!=_vnull) {
-          if (jk<nk-1 && f[il][jk+1]!=_vnull) {
-            float dk = zk-jk;
-            g[il][ik] = (1.0f-dk)*f[il][jk]+dk*f[il][jk+1];
-          } else {
-            g[il][ik] = f[il][jk];
-          }
-        }
-        */
       }
     }
     return g;
@@ -652,21 +720,25 @@ public class WellLogWarping {
     int n = z.length;
     float[] g = new float[nz];
     float[] c = new float[nz];
-    for (int i=0; i<n; ++i) {
-      float zi = z[i];
-      float fi = f[i];
-      if (zmin<=zi && zi<=zmax && fi!=_vnull) {
-        int iz = s.indexOfNearest(zi);
-        g[iz] += fi;
-        c[iz] += 1.0f;
+    if (n!=0) {
+      for (int i=0; i<n; ++i) {
+        float zi = z[i];
+        float fi = f[i];
+        if (zmin<=zi && zi<=zmax && fi!=_vnull) {
+          int iz = s.indexOfNearest(zi);
+          g[iz] += fi;
+          c[iz] += 1.0f;
+        }
       }
-    }
-    for (int iz=0; iz<nz; ++iz) {
-      if (c[iz]>0.0f) {
-        g[iz] /= c[iz];
-      } else {
-        g[iz] = _vnull;
+      for (int iz=0; iz<nz; ++iz) {
+        if (c[iz]>0.0f) {
+          g[iz] /= c[iz];
+        } else {
+          g[iz] = _vnull;
+        }
       }
+    } else {
+      g = fillfloat(_vnull,nz);
     }
     return g;
   }
@@ -738,7 +810,7 @@ public class WellLogWarping {
   private float _epow = 1.0f;
   private float _enull = -FLT_MIN;
   private float _vnull = -999.2500f;
-  private static final float SUM_SCL = 0.000f;
+  private static final float SUM_SCL = 0.001f;
 
   /**
    * Arrays of pairs of depth sample indices (is,js) with weights ws. These
@@ -773,8 +845,9 @@ public class WellLogWarping {
     }
     private Pairs[] _ps;
   }
-  public static class M implements CgSolver.A {
-    M(double sigma, int nk, int nl, boolean[][] nls) {
+  /*
+  private static class Ml implements CgSolver.A {
+    Ml(double sigma, int nk, int nl, boolean[][] nls) {
       _ref = new RecursiveExponentialFilter(sigma);
       _ref.setEdges(RecursiveExponentialFilter.Edges.OUTPUT_ZERO_SLOPE);
       _s = new float[nk];
@@ -783,38 +856,16 @@ public class WellLogWarping {
     public void apply(Vec vx, Vec vy) {
       float[][] x = ((VecArrayFloat2)vx).getArray();
       float[][] y = ((VecArrayFloat2)vy).getArray();
-      int nk = x[0].length;
-      int nl = x.length;
       copy(x,y);
-      subtractMeanOverLogs(y);
-      for (int l=0; l<nl; ++l) {
-        for (int k=0; k<nk; ++k) {
-          int ks = 0;
-          while(k<nk && !_nls[l][k]) {
-            ks++;
-            k++;
-          }
-          if (ks!=0) {
-            float[] t = new float[ks];
-            for (int kk=0, kj=k-ks; kk<ks; ++kk, ++kj) {
-              t[kk] = y[l][kj];
-            }
-            _ref.apply1(t,t);
-            for (int kk=0, kj=k-ks; kk<ks; ++kk, ++kj) {
-              y[l][kj] = t[kk];
-            }
-          }
-        }
-      }
-      //_ref.apply1(y,y);
-      subtractMeanOverLogs(y);
+      //subtractMeanOverLogs(y);
+      _ref.apply1(y,y);
+      //subtractMeanOverLogs(y);
     }
     public void subtractMeanOverLogs(float[][] x) {
       int nk = x[0].length;
       int nl = x.length;
       float[] c = new float[nk];
       zero(_s);
-      zero(c);
       for (int il=0; il<nl; ++il) {
         for (int ik=0; ik<nk; ++ik) {
           if (!_nls[il][ik]) {
@@ -827,7 +878,7 @@ public class WellLogWarping {
         for (int ik=0; ik<nk; ++ik) {
           if (c[ik]>0 && !_nls[il][ik]) {
             x[il][ik] -= _s[ik]/c[ik];
-          } else { x[il][ik] = 0; }
+          } 
         }
       }
     }
@@ -844,57 +895,10 @@ public class WellLogWarping {
     }
     private RecursiveExponentialFilter _ref;
     float[] _s; // used to efficiently compute sum over logs
-    boolean[][] _nls; 
+    boolean[][] _nls;
   }
-  
-  /*
   private static class M implements CgSolver.A {
     M(double sigma, int nk, int nl) {
-      _ref = new RecursiveExponentialFilter(sigma);
-      _ref.setEdges(RecursiveExponentialFilter.Edges.OUTPUT_ZERO_SLOPE);
-      _s = new float[nk];
-    }
-    public void apply(Vec vx, Vec vy) {
-      float[][] x = ((VecArrayFloat2)vx).getArray();
-      float[][] y = ((VecArrayFloat2)vy).getArray();
-      copy(x,y);
-      subtractMeanOverLogs(y);
-      _ref.apply1(y,y);
-      subtractMeanOverLogs(y);
-    }
-    public void subtractMeanOverLogs(float[][] x) {
-      int nk = x[0].length;
-      int nl = x.length;
-      zero(_s);
-      for (int il=0; il<nl; ++il) {
-        for (int ik=0; ik<nk; ++ik) {
-          _s[ik] += x[il][ik];
-        }
-      }
-      float scale = 1.0f/nl;
-      for (int il=0; il<nl; ++il) {
-        for (int ik=0; ik<nk; ++ik) {
-          x[il][ik] -= _s[ik]*scale;
-        }
-      }
-    }
-    public void test(float[][] x) {
-      int nk = x[0].length;
-      int nl = x.length;
-      zero(_s);
-      for (int il=0; il<nl; ++il) {
-        for (int ik=0; ik<nk; ++ik) {
-          _s[ik] += x[il][ik];
-        }
-      }
-      trace("M.test: sum="); dump(_s);
-    }
-    private RecursiveExponentialFilter _ref;
-    float[] _s; // used to efficiently compute sum over logs
-  }
-  */
-  private static class Mold implements CgSolver.A {
-    Mold(double sigma, int nk, int nl) {
       _ref = new RecursiveExponentialFilter(sigma);
       _ref.setEdges(RecursiveExponentialFilter.Edges.OUTPUT_ZERO_SLOPE);
       _e0 = new float[nk];
@@ -958,6 +962,7 @@ public class WellLogWarping {
     private RecursiveExponentialFilter _ref;
     float[] _e0,_e1; // constant and linear basis sequences
   }
+  */
 
   private static void makeRhs(Pairs[] ps, float[][] y) {
     int nk = y[0].length; // number of depths
@@ -979,12 +984,10 @@ public class WellLogWarping {
         int jk = js[k];
         float wk = ws[k];
         float scl = wk*wk;
-        float sum = 0.0f; // is this the best value?
         float dif = jk-ik;
-        sum *= scl*SUM_SCL;
         dif *= scl;
-        yi[ik] += sum+dif;
-        yj[jk] += sum-dif;
+        yi[ik] += dif;
+        yj[jk] -= dif;
       }
     }
   }
@@ -1011,12 +1014,10 @@ public class WellLogWarping {
         int jk = js[k];
         float wk = ws[k];
         float scl = wk*wk;
-        float sum = xi[ik]+xj[jk];
         float dif = xi[ik]-xj[jk];
-        sum *= scl*SUM_SCL;
         dif *= scl;
-        yi[ik] += sum+dif;
-        yj[jk] += sum-dif;
+        yi[ik] += dif;
+        yj[jk] -= dif;
       }
     }
   }
@@ -1083,51 +1084,119 @@ public class WellLogWarping {
     return -1;
   }
 
+  private int iminNotNull(float[][] e) {
+    int ni = e.length;
+    int nj = e[0].length;
+    for (int i=0; i<ni; ++i) {
+      for (int j=0; j<nj; ++j) {
+        if (e[i][j]!=_enull)
+          return i;
+      }
+    }
+    return ni;
+  }
+
+  private int imaxNotNull(float[][] e) {
+    int ni = e.length;
+    int nj = e[0].length;
+    for (int i=ni-1; i>=0; --i) {
+      for (int j=0; j<nj; ++j) {
+        if (e[i][j]!=_enull)
+          return i;
+      }
+    }
+    return -1;
+  }
+
+  private int jminNotNull(float[][] e) {
+    int ni = e.length;
+    int nj = e[0].length;
+    for (int j=0; j<nj; ++j) {
+      for (int i=0; i<ni; ++i) {
+        if (e[i][j]!=_enull)
+          return j;
+      }
+    }
+    return nj;
+  }
+
+  private int jmaxNotNull(float[][] e) {
+    int ni = e.length;
+    int nj = e[0].length;
+    for (int j=nj-1; j>=0; --j) {
+      for (int i=0; i<ni; ++i) {
+        if (e[i][j]!=_enull)
+          return j;
+      }
+    }
+    return -1;
+  }
+
   // Post-processing and inversion of computed shifts.
   private static void cleanShifts(float[] s) {
     int n1 = s.length;
     for (int i1=1; i1<n1; ++i1) {
       if (s[i1]<s[i1-1]-0.999f)
         s[i1] = s[i1-1]-0.999f;
+        //System.out.println("clean");
     }
   }
-  private static void invertShiftsNull(
-    InverseInterpolator ii, boolean[] nls, float[] u, float[] t, float[] s) 
-  {
-    cleanShifts(s);
-    int n1 = s.length;
-    boolean[] tnls = new boolean[n1];
-    for (int i1=0; i1<n1; ++i1) {
-      s[i1] += u[i1];
+  private static void cleanShiftsR(float[] r) {
+    int n1 = r.length;
+    for (int i1=1; i1<n1; ++i1) {
+      if (r[i1]<r[i1-1]+0.999f)
+        r[i1] = r[i1-1]+0.999f;
+        //System.out.println("clean");
     }
-    ii.invert(s,t);
+  }
+  private static void invertT2Z(
+    InverseInterpolator ii, float[] z, float[] t) 
+  {
+    cleanZorT(t);
+    int n1 = t.length;
+    ii.invert(t,z);
+    float zmin = -n1;
+    //float zmax = n1-1;
+    float zmax = n1+n1;
+    for (int i1=0; i1<n1; ++i1) {
+      if (z[i1]<zmin) z[i1] = zmin;
+      if (z[i1]>zmax) z[i1] = zmax;
+    }
+    copy(z,t);
+  }
+  public static void invertT2Z(float[][] t) {
+    int n1 = t[0].length;
+    int n2 = t.length;
+    float[] z = zerofloat(n1);
+    InverseInterpolator ii = new InverseInterpolator(n1,n1);
+    for (int i2=0; i2<n2; ++i2)
+      invertT2Z(ii,z,t[i2]);
+  }
+  private static void invertShiftsR2S(
+    InverseInterpolator ii, float[] u, float[] t, float[] r) 
+  {
+    cleanShiftsR(r);
+    int n1 = r.length;
+    for (int i1=0; i1<n1; ++i1)
+      r[i1] = u[i1]-r[i1];
+    ii.invert(r,t);
     float tmin = -n1;
     float tmax = n1+n1;
     for (int i1=0; i1<n1; ++i1) {
       if (t[i1]<tmin) t[i1] = tmin;
       if (t[i1]>tmax) t[i1] = tmax;
-      s[i1] = u[i1]-t[i1];
-      int zi = (int)(t[i1] + 0.5f); ///// diff interp?
-      if (nls[zi]) {
-        tnls[i1] = true;
-      }
-    }
-    for (int i1=0; i1<n1; ++i1) {
-      nls[i1] = tnls[i1];
+      r[i1] = t[i1]-u[i1];
     }
   }
-
-  private static void invertshifts(boolean[][] nls, float[][] s) {
-    int n1 = s[0].length;
-    int n2 = s.length;
+  public static void invertShiftsR2S(float[][] r) {
+    int n1 = r[0].length;
+    int n2 = r.length;
     float[] u = rampfloat(0.0f,1.0f,n1);
     float[] t = zerofloat(n1);
     InverseInterpolator ii = new InverseInterpolator(n1,n1);
     for (int i2=0; i2<n2; ++i2)
-      invertShiftsNull(ii,nls[i2],u,t,s[i2]);
+      invertShifts(ii,u,t,r[i2]);
   }
-  
-  /*
   private static void invertShifts(
     InverseInterpolator ii, float[] u, float[] t, float[] s) 
   {
@@ -1144,7 +1213,7 @@ public class WellLogWarping {
       s[i1] = u[i1]-t[i1];
     }
   }
-  private static void invertShifts(float[][] s) {
+  public static void invertShifts(float[][] s) {
     int n1 = s[0].length;
     int n2 = s.length;
     float[] u = rampfloat(0.0f,1.0f,n1);
@@ -1153,36 +1222,63 @@ public class WellLogWarping {
     for (int i2=0; i2<n2; ++i2)
       invertShifts(ii,u,t,s[i2]);
   }
-  */
 
   private static void interpolateShifts(boolean[][] nls, float[][] s) {
     int nk = s[0].length;
     int nl = s.length;
     int[][] mm = new int[nl][2];
+    float[][] ll = new float[nl][2];
     int klo,khi,fk,lk;
     for (int l=0; l<nl; ++l) {
       int k=0;
       while (k<nk && nls[l][k]) k++;
       mm[l][0] = k;
+      ll[l][0] = s[l][k];
       k=nk-1;
       while (k>=0 && nls[l][k]) k--;
       mm[l][1] = k;
+      ll[l][1] = s[l][k];
     }
     for (int l=0; l<nl; ++l) {
       fk = mm[l][0];
       lk = mm[l][1];
+      for (int k=0; k<fk; ++k) {
+        s[l][k] = s[l][mm[l][0]];
+      }
       for (int k=fk; k<=lk; ++k) {
         if (nls[l][k]) {
           klo = khi = k;
-          while (nls[l][klo] && klo>fk) klo -= 1;
-          while (nls[l][khi] && khi<lk) khi += 1; 
-          s[l][k] = ((khi-k)*(klo+s[l][klo]) + (k-klo)*(khi+s[l][khi]))/(khi-klo) - k;
+          while (klo>fk && nls[l][klo]) klo -= 1;
+          while (khi<lk && nls[l][khi]) khi += 1; 
+          s[l][k] = ((khi-k)*(s[l][klo]) + (k-klo)*(s[l][khi]))/(khi-klo);
         }
+      }
+      for (int k=lk+1; k<nk; ++k) {
+        s[l][k] = s[l][mm[l][1]];
       }
     }
   }
-
-
+  public static void invertZ2T(float[] zb) {
+    int n = zb.length;
+    float[] tb = zerofloat(n);
+    InverseInterpolator ii = new InverseInterpolator(n,n);
+    cleanZorT(zb);
+    ii.invert(zb,tb);
+    float tmin = -n;
+    float tmax = n+n;
+    for (int i1=0; i1<n; ++i1) {
+      if (tb[i1]<tmin) tb[i1] = tmin;
+      if (tb[i1]>tmax) tb[i1] = tmax;
+    }
+    copy(tb,zb);
+  }
+  private static void cleanZorT(float[] t) {
+    int n1 = t.length;
+    for (int i1=1; i1<n1; ++i1) {
+      if (t[i1]<t[i1-1]+0.001f)
+        t[i1] = t[i1-1]+0.001f;
+    }
+  }
   private static void trace(String s) {
     System.out.println(s);
   }
