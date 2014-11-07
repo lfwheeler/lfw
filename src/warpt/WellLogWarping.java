@@ -456,9 +456,10 @@ public class WellLogWarping {
     float[][] sold = new float[nl][nk]; 
     float thresh = 1.0f;
     //float thresh = 10.0f;
-    
-    while (diff>thresh) {
-    //for (int i1=0; i1<5; ++i1) {
+    int maxit = 20;
+    int it = 0;
+
+    while (diff>thresh && it<maxit) {
       copy(s,sold);
       CgSolver cs = new CgSolver(small,niter);
       if (diff < FLT_MAX) {
@@ -529,6 +530,7 @@ public class WellLogWarping {
 
       diff = avd/cct;
       System.out.println("diff="+diff);
+      ++it;
     }
 
   /*
