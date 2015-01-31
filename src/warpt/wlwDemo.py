@@ -26,7 +26,7 @@ from warpt import *
 
 wlw = WellLogWarping()
 wells = None
-curves  = ["v", "p", "d"]
+curves  = ["v", "p", "d"] # velocity, porosity, density
 weights = [1.0, 1.0, 2.0] # set any weight to zero to exclude that log type
 epow    = [0.25,0.25,0.125] # power of norm for alignment errors 
 
