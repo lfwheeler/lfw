@@ -482,10 +482,10 @@ public class WellLogWarpingTest {
     }
   }
 
-  private void computeWeights(float[] wm, float[][][] wl, Pairs[] ps, int[] ls) {
+  private void computeWeights(float[] wm, float[][][] wl, Pairs[] ps) {
     int  nm = wl[0].length;
     int nlp = ps.length;
-    double[] wsum = new double[nm];
+    float[] wsum = new float[nm];
     for (int lp=0; lp<nlp; ++lp) {
       int  m = ps[lp].m;
       int np = ps[lp].np;
@@ -493,20 +493,18 @@ public class WellLogWarpingTest {
       int jl = ps[lp].jl;
       int[] is = ps[lp].is;
       int[] js = ps[lp].js;
-      double ws = ps[lp].ws;
+      float ws = ps[lp].ws;
       float tae = 0;
       for (int kz=0; kz<np; ++kz) 
         tae += error(wl[il][m][is[kz]],wl[jl][m][js[kz]],m);
-      ws = tae>0 ? np*np/tae : 1.0f; 
-      //ws = tae>0 ? np*pow(np/tae,2.0/_epower[m]) : 1.0f; 
+      ws = tae>0 ? np*(float)pow(np/tae,2.0/_epower[m]) : 1.0f; 
       ps[lp].ws = ws;
       wsum[m] += ws;
-      ls[il] += 1;
-      ls[jl] += 1;
     }
+    dump(wsum);
     for (int lp=0; lp<nlp; ++lp) {
       int m = ps[lp].m;
-      double ws = ps[lp].ws;
+      float ws = ps[lp].ws;
       ws /= wsum[m];
       ws *= wm[m];
       //ps[lp].ws = 1.0f;
@@ -527,18 +525,16 @@ public class WellLogWarpingTest {
     final int nm = wells[0].length;
     int nz = wells[0][0].length;
     final Pairs[] pt = new Pairs[nl*nm*(nl*nm-1)/2];
-    int[] ls = new int[nl];
     int nlp = 0;
     final int[] ils = new int[nl*(nl-1)/2];
     final int[] jls = new int[nl*(nl-1)/2];
     for (int il=0; il<nl; ++il) {
-      for (int jl=il+1; jl<nl; ++jl,++nlp) {
-        ils[nlp] = il;
-        jls[nlp] = jl;
+      for (int jl=il+1; jl<nl; ++jl) {
+        ils[nlp  ] = il;
+        jls[nlp++] = jl;
       }
     }
     final AtomicInteger nij = new AtomicInteger(0);
-    //Parallel.setParallel(false);
     Parallel.loop(nlp,new Parallel.LoopInt() {
       public void compute(int ip) {
         for (int im=0; im<nm; ++im) {
@@ -555,56 +551,42 @@ public class WellLogWarpingTest {
             int[] is = ij[0];
             int[] js = ij[1];
             int np = is.length;
-            if (np>0) {
-              float[][] zij = makeZs(ij);
-              float[] zi = zij[0];
-              float[] zj = zij[1];
-              dump(sub(zj,zi));
-              pt[nij.getAndIncrement()] = new Pairs(il,jl,im,is,js,zi,zj,np);
-            }
+            if (np>0)
+              pt[nij.getAndIncrement()] = new Pairs(il,jl,im,is,js,np);
           }
         }
       }
     });
+    /*
+    nlp = 0;
+    for (int il=0; il<nl; ++il) {
+      for (int jl=il+1; jl<nl; ++jl) {
+        for (int im=0; im<nm; ++im) {
+          float[] fi = wl[il][im];
+          float[] gj = wl[jl][im];
+          if (wm[im]>0 && wellNotNull(fi) && wellNotNull(gj)) {
+            float[][] e = computeErrors(fi,gj);
+            float[][] d = accumulateErrors(e);
+            int[][] kl = findWarping(d);
+            //int[][] kls = extendPairs(fi,gj,e,kl);
+            int[][] ij = convertWarping(kl,fi,gj);
+            int[] is = ij[0];
+            int[] js = ij[1];
+            int np = is.length;
+            if (np>0)
+              pt[nlp++] = new Pairs(il,jl,im,is,js,np);
+          }
+        }
+      }
+    }
+    */
     nlp = nij.get();
     Pairs[] ps = new Pairs[nlp];
     for (int ip=0; ip<nlp; ++ip)
       ps[ip] = pt[ip];
-    computeWeights(wm,wl,ps,ls);
+    computeWeights(wm,wl,ps);
 
-   return computeShifts(nz,ls,ps);
- }
- private static float[][] makeZs(int[][] ij) {
-   int ni = ij.length;
-   int np = ij[0].length;
-   float[][] zij = new float[ni][np];
-   int nlo,nhi;
-
-   for (int ii=0; ii<ni; ++ii) {
-     zij[ii][0] = ij[ii][0];
-     for (int ip=1; ip<np; ++ip) {
-       if(ij[ii][ip]-ij[ii][ip-1]>0) {
-         zij[ii][ip] = ij[ii][ip];
-         if (ii==0)
-           zij[ii+1][ip] = ij[ii+1][ip];
-         else
-           zij[ii-1][ip] = ij[ii-1][ip];
-       } else {
-         nlo = nhi = ip;
-         while(nlo>0 && ij[ii][nlo]-ij[ii][nlo-1]==0)
-           --nlo;
-         while(nhi<np-1 && ij[ii][nhi]-ij[ii][nhi-1]==0) // treating this correctly? what if i or j is const up to last sample?
-           ++nhi;
-         float dj = 1.0f/(nhi-nlo);
-         zij[ii][ip] = dj*((nhi-ip)*ij[ii][nlo]+(ip-nlo)*ij[ii][nhi]);
-         if (ii==0)
-           zij[ii+1][ip] = ij[ii+1][ip];
-         else
-           zij[ii-1][ip] = ij[ii-1][ip];
-       }
-     }
-   }
-   return zij;
+   return computeShifts(nz,nl,ps);
  }
 
   /**
@@ -977,21 +959,18 @@ public class WellLogWarpingTest {
    * arrays were computed by warping a pair of logs with indices (ilog,jlog).
    */
   private static class Pairs {
-    Pairs(int il, int jl, int m, int[] is, int[] js, float[] zi, float[] zj, int np)
+    Pairs(int il, int jl, int m, int[] is, int[] js, int np)
   {
       this.il = il;
       this.jl = jl;
       this.is = is;
       this.js = js;
-      this.zi = zi;
-      this.zj = zj;
       this.np = np;
       this.m  = m;
     }
     int il,jl,m,np;
     int[] is,js;
-    float[] zi,zj;
-    double ws;
+    float ws;
   }
 
   /**
@@ -1000,13 +979,11 @@ public class WellLogWarpingTest {
    * the mean and linear trend.
    */
   private static class A implements CgSolver.A {
-    A(float[][] tz, int[][] c, double wp,int np, Pairs[] ps) {
+    A(float[][] tz, int[][] c, Pairs[] ps) {
     //A(int csmall, float[][] tz, int[][] tc, Pairs[] ps) {
       _ps = ps;
       _tz = tz;
       _tc = c;
-      _wp = wp;
-      _np = np;
       //_csmall = csmall;
     }
     /*
@@ -1030,31 +1007,7 @@ public class WellLogWarpingTest {
       //double[][] y = ((VecArrayDouble2)vy).getArray();
       float[][] x = ((VecArrayFloat2)vx).getArray();
       float[][] y = ((VecArrayFloat2)vy).getArray();
-      applyLhs(_tz,_tc,_wp,_np,_ps,x,y);
-      testNND(y[0].length,y.length);
-    }
-    private void testNND(int nk, int nl) {
-      float[][] x  = sub(randfloat(nk,nl),0.5f);
-      float[][] xt = copy(x);
-      applyLhs(_tz,_tc,_wp,_np,_ps,copy(x),x);
-
-      VecArrayFloat2 vx = new VecArrayFloat2(x);
-      VecArrayFloat2 vxt = new VecArrayFloat2(xt);
-
-      float[][] y  = sub(randfloat(nk,nl),0.5f);
-      float[][] yt = copy(y);
-      applyLhs(_tz,_tc,_wp,_np,_ps,copy(y),y);
-
-      VecArrayFloat2 vy  = new VecArrayFloat2(y);
-      VecArrayFloat2 vyt = new VecArrayFloat2(yt);
-
-      float ytAx = (float)vyt.dot(vx);
-      float xtAy = (float)vxt.dot(vy);
-      float xtAx = (float)vxt.dot(vx);
-      float ytAy = (float)vyt.dot(vy);
-      //System.out.println("ytAx="+ytAx+" xtAy="+xtAy);
-      //assert abs(ytAx-xtAy)<1.0e-8 : "A is not symmetric";
-      assert (xtAx>=0 || ytAy>=0) : "A is not non-negative";
+      applyLhs(_tz,_tc,_ps,x,y);
     }
     private void testNND(int nk, int nl, int csmall) {
       double[][] x  = sub(randdouble(nk,nl),0.5d);
@@ -1094,16 +1047,14 @@ public class WellLogWarpingTest {
     private Pairs[] _ps;
     private float[][] _tz;
     private int[][] _tc;
-    private int _csmall,_np;
-    private double _wp;
+    private int _csmall;
   }
   private static class Ml implements CgSolver.A {
-    Ml(double sigma, int nk, int nl, int[] ls) {
+    Ml(double sigma, int nk, int nl) {
     //Ml(double sigma, int nk, int nl, boolean[][] nls,int[][] tc) {
       _ref = new RecursiveExponentialFilter(sigma);
       _ref.setEdges(RecursiveExponentialFilter.Edges.OUTPUT_ZERO_SLOPE);
       _s = new float[nk];
-      _ls = ls;
       //_tc = tc;
     }
     public void apply(Vec vx, Vec vy) {
@@ -1146,22 +1097,14 @@ public class WellLogWarpingTest {
     public void subtractMeanOverLogs(float[][] x) {
       int nk = x[0].length;
       int nl = x.length;
-      int cl = 0;
       zero(_s);
-      for (int il=0; il<nl; ++il) {
-        if (_ls[il]>0) {
-          for (int ik=0; ik<nk; ++ik)
-            _s[ik] += x[il][ik];
-          ++cl;
-        }
-      }
-      float c = 1.0f/cl;
-      for (int il=0; il<nl; ++il) {
-        if (_ls[il]>0) {
-          for (int ik=0; ik<nk; ++ik)
-            x[il][ik] -= _s[ik]*c;
-        }
-      }
+      for (int il=0; il<nl; ++il) 
+        for (int ik=0; ik<nk; ++ik)
+          _s[ik] += x[il][ik];
+      float c = 1.0f/nl;
+      for (int il=0; il<nl; ++il)
+        for (int ik=0; ik<nk; ++ik)
+          x[il][ik] -= _s[ik]*c;
     }
     public void test(float[][] x) {
       int nk = x[0].length;
@@ -1169,14 +1112,12 @@ public class WellLogWarpingTest {
       zero(_s);
       for (int il=0; il<nl; ++il)
         for (int ik=0; ik<nk; ++ik)
-          if (_ls[il]>0)
-            _s[ik] += x[il][ik];
+          _s[ik] += x[il][ik];
       trace("M.test: sum="); dump(_s);
     }
     private RecursiveExponentialFilter _ref;
     float[] _s; // used to efficiently compute sum over logs
     int[][] _tc;
-    int[] _ls;
   }
   private static class M implements CgSolver.A {
     M(double sigma, int nk, int nl) {
@@ -1264,24 +1205,18 @@ public class WellLogWarpingTest {
       int[] cj = c[jl];
       int[] is = p.is;
       int[] js = p.js;
-      float[] zi = p.zi;
-      float[] zj = p.zj;
-      double ws = p.ws;
+      float ws = p.ws;
       int n = is.length;
       for (int k=0; k<n; ++k) { // for all index pairs (i,j), ...
         int ik = is[k];
         int jk = js[k];
-        float iz = zi[k];
-        float jz = zj[k];
         int it = (int)(ti[ik]+0.5f);
         int jt = (int)(tj[jk]+0.5f);
-          float dif = jz-iz;
-        if (0<it && it<nt && 0<jt && jt<nt && abs(dif)%1==0) {
-          float scl = (float)(ws*ws);
-          //if (abs(dif)%1==0) {
-            ++ci[it];
-            ++cj[jt];
-          //}
+        if (0<it && it<nt && 0<jt && jt<nt) {
+          ++ci[it];
+          ++cj[jt];
+          float scl = (ws*ws);
+          float dif = jk-ik;
           dif *= scl;
           yi[it] += dif;
           yj[jt] -= dif;
@@ -1307,7 +1242,7 @@ public class WellLogWarpingTest {
       int[] tcj = tc[jl];
       int[] is = p.is;
       int[] js = p.js;
-      double ws = p.ws;
+      float ws = p.ws;
       int n = is.length;
       /*
       float[] z = rampfloat(0.0f,1.0f,nt);
@@ -1327,7 +1262,7 @@ public class WellLogWarpingTest {
         //float jz = zj[jt];
           ++tci[it];
           ++tcj[jt];
-          double scl = ws*ws;
+          double scl = (double)(ws*ws);
           //double dif = jz-iz;
           double dif = jk-ik;
           dif *= scl;
@@ -1339,11 +1274,12 @@ public class WellLogWarpingTest {
   }
 
   private static void applyLhs(
-    float[][] tz, int[][] c, double wp,int npp, Pairs[] ps, float[][] x, float[][] y) 
+    float[][] tz, int[][] c, Pairs[] ps, float[][] x, float[][] y) 
   {
     int nt = x[0].length; // number of depths
     int nl = x.length; // number of logs
     int np = ps.length; // number of log pairs
+    float wp = 0;
     zero(y); // zero y before accumulating below
     for (int ip=0; ip<np; ++ip) { // for all log pairs, ...
       Pairs p = ps[ip];
@@ -1357,15 +1293,16 @@ public class WellLogWarpingTest {
       float[] tj = tz[jl];
       int[] is = p.is;
       int[] js = p.js;
-      double ws = p.ws;
+      float ws = p.ws;
       int n = is.length;
       for (int k=0; k<n; ++k) { // for all index pairs (i,j), ...
         int ik = is[k];
         int jk = js[k];
         int it = (int)(ti[ik]+0.5f);
         int jt = (int)(tj[jk]+0.5f);
-        if (0<it && it<nt && 0<jt && jt<nt && c[il][it]>0 && c[jl][jt]>0) {
-          float scl = (float)(ws*ws);
+        if (0<it && it<nt && 0<jt && jt<nt) {
+          wp += ws;
+          float scl = (ws*ws);
           float dif = xi[it]-xj[jt];
           dif *= scl;
           yi[it] += dif;
@@ -1373,7 +1310,7 @@ public class WellLogWarpingTest {
         }
       }
     }
-    constrainSmoothShifts(wp,npp,c,x,y);
+    constrainSmoothShifts(wp,c,x,y);
   }
 
   private static float dmin(float a, float b, float c) {
@@ -1385,14 +1322,13 @@ public class WellLogWarpingTest {
 
   private float error(float f, float g, int m) {
     float d = f-g;
-    float epow = _epower[m];
-    if (epow==2.0f) {
+    if (_epower[m]==2.0f) {
       return d*d;
-    } else if (epow==1.0f) {
+    } else if (_epower[m]==1.0f) {
       return abs(d);
     } else {
       if (d<0.0f) d = -d;
-      return pow(d,epow);
+      return pow(d,_epower[m]);
     }
   }
   private float error(float f, float g) {
@@ -2047,18 +1983,19 @@ public class WellLogWarpingTest {
     return new int[][]{ks,ls};
   }
 
-  private static float[] findConstantShift(int[] ls, Pairs[] ps) {
-    int nl = ls.length;
+  private static float[] findConstantShift(int nl, Pairs[] ps) {
     int nlp = ps.length; // number of log pairs
-    int np = 1;
-    for (int ip=0; ip<nlp; ++ip) // for all log pairs, ...
-      np += ps[ip].np;
-    DMatrix a = new DMatrix(np,nl);
-    DMatrix b = new DMatrix(np,1);
-    for (int il=0; il<nl; ++il) {
-      if (ls[il]>0)
-        a.set(0,il,1.0d); // makes sum = 0
+    int np = 0;
+    for (int ip=0; ip<nlp; ++ip) { // for all log pairs, ...
+      Pairs p = ps[ip];
+      int[] is = p.is;
+      int n = is.length;
+      np += n;
     }
+    DMatrix a = new DMatrix(np+1,nl);
+    DMatrix b = new DMatrix(np+1,1);
+    for (int il=0; il<nl; ++il)
+      a.set(0,il,1.0d); // makes sum = 0
     np = 1;
     for (int ip=0; ip<nlp; ++ip) { // for all log pairs, ...
       Pairs p = ps[ip];
@@ -2078,30 +2015,11 @@ public class WellLogWarpingTest {
         b.set(np, 0, w*dz);
       }
     }
-    int nls = 0;
-    for (int il=0; il<nl; ++il)
-      if (ls[il]>0)
-        ++nls;
-    DMatrix at = new DMatrix(np,nls);
-    nls = 0;
-    for (int il=0; il<nl; ++il) {
-      if (ls[il]>0) {
-        for (int ip=0; ip<np; ++ip)
-          at.set(ip,nls,a.get(ip,il));
-        ++nls;
-      }
-    }
-
-    DMatrix x = at.solve(b);
+    DMatrix x = a.solve(b);
     double[] sd = x.getArray();
     float[] s  = new float[nl];
-    nls = 0;
-    for (int il=0; il<nl; ++il) {
-      if (ls[il]>0) {
-        s[il] = (float)sd[nls];
-        ++nls;
-      }
-    }
+    for (int il=0; il<nl; ++il) 
+      s[il] = (float)sd[il];
 
     return s;
   }
@@ -2149,13 +2067,12 @@ public class WellLogWarpingTest {
   */
 
   // Use CG to solve least-squares equations for shifts s.
-  private float[][] computeShifts(int nt, int[] ls, Pairs[] ps) {
-   int nl = ls.length;
-   int niter = 4;
+  private float[][] computeShifts(int nt, int nl, Pairs[] ps) {
+   int niter = 5;
    float[][] r = new float[nl][nt]; // r = s+q
    float[][] q = new float[nl][nt]; // handles shifts for str/sqz
    float[][] tz = new float[nl][nt]; 
-   float[] s = findConstantShift(ls,ps); // static shifts
+   float[] s = findConstantShift(nl,ps); // static shifts
    trace("sum="+sum(s));
    dump(s);
    for (int il=0; il<nl; ++il) { 
@@ -2166,10 +2083,10 @@ public class WellLogWarpingTest {
    
    for (int iter=0; iter<niter; ++iter) {
      //copy(r,sold);
-     innerLoop(iter,s,ls,ps,tz,q);
+     innerLoop(iter,s,ps,tz,q);
      trace("outer it="+iter);
 
-/* 
+/*
      PlotPanel pp = new PlotPanel();
      float[] d = rampfloat(0.0f,1.0f,nt);
      PointsView pv = pp.addPoints(d,q[0]);
@@ -2179,7 +2096,7 @@ public class WellLogWarpingTest {
      PlotFrame pf = new PlotFrame(pp);
      pf.setVisible(true);
      pf.setDefaultCloseOperation(PlotFrame.EXIT_ON_CLOSE);
-*/ 
+*/
 
      for (int il=0; il<nl; ++il) 
        add(q[il],s[il],r[il]);
@@ -2195,26 +2112,17 @@ public class WellLogWarpingTest {
      System.out.println("RMS error (s): "+rms);
      //System.out.println("RMS error (r) before="+bfr+" after="+afr+" diff="+(afr-bfr));
 
-     subtractMeanOverLogs(ls,r);
-     Color[] col = {Color.black,Color.blue,Color.green,Color.magenta,
-                    Color.red,Color.orange};
-     int nc = col.length;
      PlotPanel pp = new PlotPanel(PlotPanel.Orientation.X1DOWN_X2RIGHT);
      float[] d = rampfloat(0.0f,1.0f,nt);
      PointsView pv = pp.addPoints(d,r[0]);
-     pv.setLineColor(col[0]);
-     pv.setLineWidth(1.2f);
-     for (int il=1; il<nl; ++il) {
+     for (int il=1; il<nl; ++il) 
        pv = pp.addPoints(d,r[il]);
-       pv.setLineColor(col[il-nc*(il/nc)]);
-       pv.setLineWidth(1.2f);
-     }
      pp.setTitle("it="+iter);
      PlotFrame pf = new PlotFrame(pp);
      pf.setSize(500,900);
      pf.setVisible(true);
      pf.setDefaultCloseOperation(PlotFrame.EXIT_ON_CLOSE);
-/* 
+/*
      pp = new PlotPanel();
      pv = pp.addPoints(d,q[0]);
      for (int il=1; il<nl; ++il) 
@@ -2224,76 +2132,23 @@ public class WellLogWarpingTest {
      pf.setVisible(true);
      pf.setDefaultCloseOperation(PlotFrame.EXIT_ON_CLOSE);
 
-*/ 
+*/
    }
    return r;
   }
-  private double sumWeights(float[][] tz, Pairs[] ps) {
-    int nt = tz[0].length;
-    int np = ps.length; // number of log pairs
-    double wp = 0;
-    for (int ip=0; ip<np; ++ip) { // for all log pairs, ...
-      Pairs p = ps[ip];
-      int n = p.np;
-      int il = p.il;
-      int jl = p.jl;
-      int[] is = p.is;
-      int[] js = p.js;
-      float[] ti = tz[il];
-      float[] tj = tz[jl];
-      double ws = p.ws;
-      for (int k=0; k<n; ++k) { // for all index pairs (i,j), ...
-        int ik = is[k];
-        int jk = js[k];
-        int it = (int)(ti[ik]+0.5f);
-        int jt = (int)(tj[jk]+0.5f);
-        if (0<it && it<nt && 0<jt && jt<nt)
-          wp += ws;
-      }
-    }
-    return wp;
-  }
-
-  private int sumPairs(float[][] tz, Pairs[] ps) {
-    int nt = tz[0].length;
-    int np = ps.length; // number of log pairs
-    int npp = 0;
-    for (int ip=0; ip<np; ++ip) { // for all log pairs, ...
-      Pairs p = ps[ip];
-      int n = p.np;
-      int il = p.il;
-      int jl = p.jl;
-      int[] is = p.is;
-      int[] js = p.js;
-      float[] ti = tz[il];
-      float[] tj = tz[jl];
-      double ws = p.ws;
-      for (int k=0; k<n; ++k) { // for all index pairs (i,j), ...
-        int ik = is[k];
-        int jk = js[k];
-        int it = (int)(ti[ik]+0.5f);
-        int jt = (int)(tj[jk]+0.5f);
-        if (0<it && it<nt && 0<jt && jt<nt)
-          ++npp; 
-      }
-    }
-    return npp;
-  }
 
   private void innerLoop(
-    int iter, float[] s, int[] ls, Pairs[] ps, float[][] tz, float[][] q) 
+    int iter, float[] s, Pairs[] ps, float[][] tz, float[][] q) 
   {
    int nt = tz[0].length;
    int nl = tz.length;
    float sigma = 100.0f;
-   float small = 1.0e-6f;
-   int niter = 300*iter+300;
-   //niter = niter>2000 ? 2000 : niter;
+   float small = 1.0e-3f;
+   int niter = 200*iter+200;
+   niter = niter>1000 ? 1000 : niter;
    int[][] c = new int[nl][nt]; // for right-hand side
-   double wp = sumWeights(tz,ps);
-   int npp = sumPairs(tz,ps);
-   A a = new A(tz,c,wp,npp,ps);
-   Ml m = new Ml(sigma,nt,nl,ls);
+   A a = new A(tz,c,ps);
+   Ml m = new Ml(sigma,nt,nl);
    CgSolver cs = new CgSolver(small,niter);
    float[][] b = new float[nl][nt]; // for right-hand side
    float[][] p = new float[nl][nt]; // for right-hand side
@@ -2301,7 +2156,7 @@ public class WellLogWarpingTest {
      p[il] = fillfloat(s[il],nt);
 
    makeRhs(tz,c,s,ps,b);
-   applyLhs(tz,c,wp,npp,ps,copy(p),p);
+   applyLhs(tz,c,ps,copy(p),p);
    sub(b,p,b);
 
 
@@ -2338,22 +2193,21 @@ public class WellLogWarpingTest {
     */
   }
   private static void constrainSmoothShifts(
-    double wp, int np, int[][] c, float[][] x, float[][] y) 
+    float wp, int[][] c, float[][] x, float[][] y) 
   {
     int nt = x[0].length; // number of depths
     int nl = x.length; // number of logs
-    //wp *= 0.3;
     wp /= nl;
-    //wp /= np;
     for (int il=0; il<nl; ++il) {
       float[] xi = x[il];
       float[] yi = y[il];
       for (int it=1; it<nt; ++it) { 
-        //double wk = c[il][it]>0 ? 0.0d : wp;
-        double wk = (c[il][it]==0 || c[il][it-1]==0) ? wp : 0.0d;
-        //double wk = (c[il][it]==0 || c[il][it-1]==0) ? wp*0.1 : wp/np*nl;
-        //double wk = (c[il][it]==0 || c[il][it-1]==0) ? wp : nl/(1.0d+c[il][it]+c[il][it-1]);
-        float scl = (float)(wk*wk);
+        float wk = c[il][it]>0 ? 0.0f : wp;
+        //float wk = 10.0f;
+        //wk /= 1.0f+c[il][it-1]+c[il][it];
+        //if (c[il][it-1]>0 && c[il][it]>0) wk = 0.0f;
+        //wk /= exp(c[il][it-1]+c[il][it]);
+        float scl = wk*wk;
         float dif = xi[it]-xi[it-1];
         dif *= scl;
         yi[it  ] += dif;
@@ -2478,25 +2332,5 @@ public class WellLogWarpingTest {
 
   private static void trace(String s) {
     System.out.println(s);
-  }
-  public void subtractMeanOverLogs(int[] ls, float[][] x) {
-    int nk = x[0].length;
-    int nl = x.length;
-    int cl = 0;
-    float[] s = zerofloat(nk);
-    for (int il=0; il<nl; ++il) {
-      if (ls[il]>0) {
-        for (int ik=0; ik<nk; ++ik)
-          s[ik] += x[il][ik];
-        ++cl;
-      }
-    }
-    float c = 1.0f/cl;
-    for (int il=0; il<nl; ++il) {
-      if (ls[il]>0) {
-        for (int ik=0; ik<nk; ++ik)
-          x[il][ik] -= s[ik]*c;
-      }
-    }
   }
 }

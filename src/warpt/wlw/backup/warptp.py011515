@@ -25,34 +25,31 @@ from warpt import *
 wlw = WellLogWarpingTest()
 #wlw = WellLogWarpingT()
 curve = "v"
-"""
-curves  = ["d"]
+curves = ["v"]
+#curves = ["v","p"]
+#curves = ["v","p","d"]
+#curves  = ["v", "d", "p", "g"]
 weights = [1.0]
-"""
-curves  = ["v", "p", "d"]
-weights = [1.0, 1.0, 2.0]
-epow    = [0.25,0.25,0.125]
-"""
-curves  = ["v", "d",  "p", "g"]
-weights = [1.0, 2.0,  1.0, 0.0]
-epow    = [0.25,0.125,0.125,0.05]
-"""
+#weights = [1.5, 1.0, 0.5]
+#weights = [0.0, 1.0, 0.0, 0.0]
 wells = None
 logs = None
-fnull = -999.2500
 
 def main(args):
   global logs
   logs = getLogs("d",curve)
   global wells
   wells = getWells("d",curves)
+  #goNormalize()
+  #goErrorsAvg()
   #goStats()
   #goHistogram()
-  #goShifts()
-  #goFlip()
+  #goShiftMultiFlip()
+  goShiftMulti()
   #goErrorsM()
   #goRGT()
   #goHorizon()
+  #goShifts()
   #goWarping()
   #goWarpingTest()
   #goErrors()
@@ -64,110 +61,120 @@ def main(args):
   #goShiftTest()
   #goShiftGapTest()
   #goUnconformityTest()
-  #goXSection()
-  goOutputLogFile()
+  #goSVD()
 
-def goXSection():
-  x,y = [],[]
-  for index,well in enumerate(wells):
-    x.append(well.x2[0])
-    y.append(well.x3[0])
-  x = [x[141],x[ 80],x[124],x[125],x[130],x[159]]
-  y = [y[141],y[ 80],y[124],y[125],y[130],y[159]]
-  
+def goNormalize():
   sz,wl = resampleMulti(wells,curves)
-  wl = [wl[141],wl[ 80],wl[124],wl[125],wl[130],wl[159]] # xsection
+  wl = [wl[6],wl[8]]
   nl = len(wl)
-  nz = len(wl[0][0])
-  dmin = FLT_MAX
-  for i in range(1,nl):
-    d = dist(x[i],y[i],x[i-1],y[i-1])
-    if (d<dmin):
-      dmin = d
-
-
-  nx = nl
-  for i in range(1,nl):
-    d = dist(x[i],y[i],x[i-1],y[i-1])
-    nx += int(floor(d/dmin+0.5))
-  sx = Sampling(nx,dmin,0.0) 
-  fs = fillfloat(fnull,nz,nx)
-  fs[0] = wl[0][2] # density
-  nx = 1
-  for i in range(1,nl):
-    d = dist(x[i],y[i],x[i-1],y[i-1])
-    nx += int(floor(d/dmin+0.5))
-    fs[nx] = wl[i][2]
-    nx += 1
-    
-  freplace = 1.0
-  fs = wlw.replaceNulls(fs,freplace)
-  fclips = (2.0,2.8)
-  cblabel = "Density (g/cc)"
-  sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-  sp.setSize(1440,680) 
-  sp.setVLabel("Depth (km)")
-  sp.setHLabel("Distance (km)")
-  sp.addColorBar(cblabel)
-  sp.plotPanel.setColorBarWidthMinimum(90)
-  pv = sp.addPixels(sz,sx,fs)
-  pv.setInterpolation(PixelsView.Interpolation.NEAREST)
-  pv.setColorModel(ajet)
-  pv.setClips(fclips[0],fclips[1])
-  sp.setFontSizeForPrint(8.0,469.0)
-  sp.paintToPng(720.0,6.51,_pngDir+"xsection.png")
-    
-
-
-  
-  """
-
-  wlw.setPowError(epow)
-  #wlw.setPowError(0.125)
-  #wlw.setPowError(0.25)
-  wlw.setMaxShift(350)
-  s = wlw.findShifts(weights, wl)
   fs = zerofloat(len(wl[0][0]),nl)
-  freplace = 2.0
+  #freplace = 2.0
   fclips = (2.0,6.0)
   cblabel = "Velocity (km/s)"
-  s = mul(1000*sz.delta,s) # convert shifts to m
-  mdevs = 0
   for i,c in enumerate(curves):
     for j in range(nl):
       fs[j] = wl[j][i]
-      gs = wlw.applyShifts(fs,s)
       if c=="d":
-        freplace = 1.0
+        #freplace = 1.0
         fclips = (2.0,2.8)
         cblabel = "Density (g/cc)"
       if c=="p":
-        freplace = 0.0
+        #freplace = 0.0
         fclips = (0.0,0.45)
         cblabel = "Porosity"
       if c=="g":
-        freplace = 20.0
-        fclips = (20.0,160.0)
+        #freplace = 30.0
+        fclips = (30.0,160.0)
         cblabel = "Gamma ray (API)"
-    fmed = wlw.replaceWithMedian(gs)
-    fmad = wlw.replaceWithMAD(gs)
-    mdev = wlw.medianAbsoluteDeviation(gs)
-    print c,"median absolute deviation: ",mdev
-    mdevs += mdev
-    fs = wlw.replaceNulls(fs,freplace)
-    gs = wlw.replaceNulls(gs,freplace)
     sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-    sp.setSize(500,900) # CWPposter
+    sp.setSize(800,500) # CWPposter
     sp.setVLabel("Depth (km)")
     sp.setHLabel("Log index")
     sp.addColorBar(cblabel)
     sp.plotPanel.setColorBarWidthMinimum(90)
     pv = sp.addPixels(sz,Sampling(nl,1,1),fs)
     pv.setInterpolation(PixelsView.Interpolation.NEAREST)
-    pv.setColorModel(ajet)
+    pv.setColorModel(cjet)
     pv.setClips(fclips[0],fclips[1])
+    wlw.normalize(fs)
+    sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
+    sp.setSize(800,500) # CWPposter
+    sp.setVLabel("Depth (km)")
+    sp.setHLabel("Log index")
+    sp.addColorBar("Normalized")
+    sp.plotPanel.setColorBarWidthMinimum(90)
+    pv = sp.addPixels(sz,Sampling(nl,1,1),fs)
+    pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+    pv.setColorModel(cjet)
+    pv.setClips(-1.5,2.0)
+    #pv.setClips(fclips[0],fclips[1])
 
-  """
+
+
+
+
+def goErrorsAvg():
+  sz,wl = resampleMulti(wells,curves)
+  #wl = [wl[ 4],wl[36],wl[37],wl[41],wl[43],
+  #      wl[50],wl[78],wl[81],wl[88],wl[163]] # density and porosity
+  #wl = [wl[ 1],wl[ 7],wl[37],wl[56],wl[65],
+  #      wl[70],wl[73],wl[81]] # porosity and velocity
+  #wl = [wl[24],wl[68],wl[80],wl[107],wl[128]]
+  #wl = [wl[24],wl[33]]
+  wl = [wl[6],wl[8]]
+  #wl = [wl[32],wl[33]]
+  nl = len(wl)
+  wlw.setPowError(0.25)
+  wlw.setMaxShift(250)
+
+  pairs = [(0,1)] 
+  #pairs = [(3,4),(2,4)] 
+  #pairs = [(1,2),(2,3),(3,4),(5,6)] 
+  iqr = wlw.iqr(wl)
+  nq = 10
+  for pair in pairs:
+    ia,ib = pair[0],pair[1]
+    zlw = wlw.computeWarping(nq,iqr,wl[ia],wl[ib])
+    ij = wlw.convertWarping(zlw[0],wl[ia],wl[ib])
+    #e = wlw.computeErrors(0,iqr,wl[ia],wl[ib])
+    e = wlw.computeErrorsIJ(wl[ia][0],wl[ib][0])
+    for i in range(1,len(ij[0])):
+      if (ij[0][i]-ij[0][i-1]>1):
+        print "i",ij[0][i],ij[0][i-1]
+      if (ij[1][i]-ij[1][i-1]>1):
+        print "j",ij[1][i],ij[1][i-1]
+    ni,nj = len(e[0]),len(e)
+    si = Sampling(ni,1,0)
+    sj = Sampling(nj,1,0)
+    title = "("+str(ia)+","+str(ib)+")"
+    sp = SimplePlot()
+    sp.setSize(1440,873)
+    #sp.setSize(780,555)
+    sp.setTitle(title)
+    sp.setHLabel("Depth index k")
+    sp.setVLabel("Lag index l")
+    sp.setHFormat("%5f")
+    #sp.addColorBar("e[k,l]")
+    pv = sp.addPixels(si,sj,transpose(e))
+    pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+    pv.setPercentiles(0,100)
+    sp1 = SimplePlot()
+    sp1.setSize(1440,873)
+    #sp1.setSize(780,555)
+    sp1.setTitle(title)
+    sp1.setHLabel("Depth index k")
+    sp1.setVLabel("Lag index l")
+    sp1.setHFormat("%5f")
+    #sp1.addColorBar("e[k,l]")
+    pv = sp1.addPixels(si,sj,transpose(e))
+    pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+    pv.setPercentiles(0,100)
+    iw = wlw.toFloat(ij[0])
+    jw = wlw.toFloat(ij[1])
+    pv1 = sp1.addPoints(iw,jw)
+    pv1.setLineColor(Color.RED)
+    pv1.setLineStyle(PointsView.Line.DASH)
+    pv1.setLineWidth(2.0)
 
 def goStats():
   sz,wl = resampleMulti(wells,curves)
@@ -393,11 +400,68 @@ def goWarpingTest():
       #pv.setLineColor(Color.RED)
       #pv.setLineWidth(2.0)
 
-
-
-def goFlip():
+def goShiftMultiFlip():
   sz,wl = resampleMulti(wells,curves)
-  wl = [wl[0],wl[4],wl[9],wl[11],wl[14],wl[17],wl[20]] # deepest 7 velocity logs
+  #wl = [wl[ 4],wl[36],wl[37],wl[41],wl[43],
+  #      wl[50],wl[78],wl[81],wl[88],wl[163]] # density and porosity
+  #wl = [wl[ 1],wl[ 7],wl[37],wl[56],wl[65],
+  #      wl[70],wl[73],wl[81]]
+  #wl = [wl[ 1],wl[ 2],wl[ 3],wl[ 4],wl[ 7],
+  #      wl[11],wl[21],wl[22],wl[33],wl[35],
+  #      wl[36],wl[37],wl[39],wl[40],wl[41],
+  #      wl[43],wl[48],wl[50],wl[56],wl[58],
+  #      wl[60],wl[62],wl[63],wl[65],wl[70],
+  #      wl[73],wl[74],wl[78],wl[79],wl[80],
+  #      wl[81],wl[88],wl[163]]
+  #wl = [wl[0],wl[4],wl[9],wl[14],wl[17],wl[20]] # deepest 6 velocity logs
+  #wl = [wl[0],wl[4],wl[9],wl[13],wl[14],wl[17],wl[20]] # deepest 7 velocity logs
+  wl = [wl[0],wl[4]]
+  #wl = [wl[ 1],wl[ 2],wl[ 3],wl[ 4],wl[ 7],
+  #      wl[11],wl[21],wl[22],wl[33],wl[35],
+  #      wl[43],wl[48],wl[50],wl[56],wl[66],
+  #      wl[81],wl[88],wl[163]] # deepest 18 density logs
+  #wl = [wl[ 1],wl[ 2],wl[ 3],wl[ 4],wl[ 7],
+  #      wl[11],wl[21],wl[22],wl[33],wl[35],
+  #      wl[43],wl[48],wl[50],wl[56],wl[66],
+  #      wl[81],wl[88]]
+  #wl = [wl[ 1],wl[ 2],wl[ 3],wl[ 4],wl[ 7],
+  #      wl[11],wl[21],wl[22],wl[33],wl[35],
+  #      wl[43],wl[48],wl[50],wl[56],wl[66],
+  #      wl[81],wl[88],wl[163]]
+  #wl = [wl[2],wl[4]]
+  #wl = [wl[6],wl[8],wl[10]] 
+  #wl = [wl[24],wl[32],wl[33],wl[67],wl[68],
+  #      wl[80],wl[93],wl[95],wl[107],wl[119],
+  #      wl[121],wl[122],wl[128],wl[133],wl[154],
+  #      wl[165]] # all vel, den, por
+  #wl = [wl[68],wl[80],wl[93],wl[95],wl[165]] # few vel, den, por
+  #wl = [wl[23],wl[24],wl[32],wl[33],wl[67],wl[68],
+  #      wl[80],wl[93],wl[94],wl[95],wl[107],wl[119],
+  #      wl[121],wl[122],wl[128],wl[133],wl[154],
+  #      wl[165]] # test
+  #wl = [wl[22],wl[23],wl[24],wl[32],wl[33],wl[67],wl[68],
+  #      wl[80],wl[93],wl[94],wl[95],wl[105],wl[107],wl[119],
+  #      wl[121],wl[122],wl[128],wl[130],wl[133],wl[140],wl[154],
+  #      wl[165]] # some missing vel & por 
+  #wl = [wl[29],wl[30],wl[32],wl[36],
+  #      wl[47],wl[56],wl[67],wl[79],
+  #      wl[87],wl[91],wl[94],wl[102],wl[109],
+  #      wl[111],wl[123],wl[146],wl[147],wl[155]] #density
+  #wl = [wl[ 4],wl[10],wl[15],wl[16],wl[24],
+  #      wl[25],wl[32],wl[33],wl[35],wl[38],
+  #      wl[50],wl[57],wl[64],wl[65],wl[67],
+  #      wl[68],wl[80],wl[82],wl[93],wl[95],
+  #      wl[107],wl[119],wl[121],wl[122],wl[128],
+  #      wl[133],wl[154],wl[159],wl[159]] # all velocity logs (v,d,p)
+  #wl = [wl[ 5],wl[11],wl[16],wl[17],wl[25],
+  #      wl[26],wl[34],wl[35],wl[37],wl[40],
+  #      wl[53],wl[60],wl[68],wl[69],wl[72],
+  #      wl[74],wl[86],wl[88],wl[100],wl[102],
+  #      wl[118],wl[131],wl[134],wl[135],wl[138],
+  #      wl[141],wl[146],wl[169],wl[174],wl[180]] # all velocity logs (v,d,p,g)
+  #wl = [wl[ 5],wl[26],wl[34],wl[35],wl[40],
+  #      wl[60],wl[74],wl[86],wl[102],wl[134],
+  #      wl[141],wl[146],wl[169]] # some logs (v,d,p,g)
   nl = len(wl)
   #normalizeByMedian("g",curves,wl)
   #normalizeByMedian("d",curves,wl)
@@ -531,68 +595,78 @@ def goFlip():
   pv.setInterpolation(PixelsView.Interpolation.NEAREST)
   pv.setColorModel(cjet)
 
-
-def goShifts():
+def goShiftMulti():
   sz,wl = resampleMulti(wells,curves)
-  #wl = [wl[4],wl[14],wl[17],wl[20]] # deepest 7 velocity logs
-  #wl = [wl[0],wl[4],wl[9],wl[11],wl[14],wl[17],wl[20]] # deepest 7 velocity logs
+  #wl = [wl[ 4],wl[36],wl[37],wl[41],wl[43],
+  #      wl[50],wl[78],wl[81],wl[88],wl[163]] # density and porosity
+  #wl = [wl[ 1],wl[ 7],wl[37],wl[56],wl[65],
+  #      wl[70],wl[73],wl[81]]
+  #wl = [wl[ 1],wl[ 2],wl[ 3],wl[ 4],wl[ 7],
+  #      wl[11],wl[21],wl[22],wl[33],wl[35],
+  #      wl[36],wl[37],wl[39],wl[40],wl[41],
+  #      wl[43],wl[48],wl[50],wl[56],wl[58],
+  #      wl[60],wl[62],wl[63],wl[65],wl[70],
+  #      wl[73],wl[74],wl[78],wl[79],wl[80],
+  #      wl[81],wl[88],wl[163]]
   #wl = [wl[0],wl[4],wl[9],wl[14],wl[17],wl[20]] # deepest 6 velocity logs
-  #wl = [wl[16],wl[18],wl[19],wl[28],wl[33],
-  #      wl[34],wl[35],wl[37],wl[38],wl[39],
-  #      wl[45],wl[50],wl[68]] # deepest 13 porosity logs
+  #wl = [wl[4],wl[14],wl[17],wl[20]] # deepest 7 velocity logs
+  wl = [wl[0],wl[4],wl[9],wl[13],wl[14],wl[17],wl[20]] # deepest 7 velocity logs
   #wl = [wl[ 6],wl[16],wl[18],wl[31],wl[32],wl[33],wl[36],
   #      wl[38],wl[48],wl[55],wl[86]] # deepest 11 gamma logs
   #wl = [wl[ 1],wl[ 2],wl[ 3],wl[ 4],wl[ 7],
   #      wl[11],wl[21],wl[22],wl[33],wl[35],
   #      wl[43],wl[48],wl[50],wl[56],wl[66],
   #      wl[81],wl[88],wl[163]] # deepest 18 density logs
+  #wl = [wl[ 1],wl[ 2],wl[ 3],wl[ 4],wl[ 7],
+  #      wl[11],wl[21],wl[22],wl[33],wl[35],
+  #      wl[43],wl[48],wl[50],wl[56],wl[66],
+  #      wl[81],wl[88]]
+  #wl = [wl[ 1],wl[ 2],wl[ 3],wl[ 4],wl[ 7],
+  #      wl[11],wl[21],wl[22],wl[33],wl[35],
+  #      wl[43],wl[48],wl[50],wl[56],wl[66],
+  #      wl[81],wl[88],wl[163]]
+  #wl = [wl[2],wl[4]]
+  #wl = [wl[6],wl[8],wl[10]] 
+  #wl = [wl[18],wl[19],wl[20],wl[35],wl[40],
+  #      wl[80],wl[82],wl[83],wl[107],wl[119],
+  #      wl[121],wl[122],wl[123],wl[124],wl[125],
+  #      wl[127]] # all vel, den, por
+  #wl = [wl[68],wl[80],wl[93],wl[95],wl[165]] # few vel, den, por
+  #wl = [wl[23],wl[24],wl[32],wl[33],wl[67],wl[68],
+  #      wl[80],wl[93],wl[94],wl[95],wl[107],wl[119],
+  #      wl[121],wl[122],wl[128],wl[133],wl[154],
+  #      wl[165]] # test
+  #wl = [wl[22],wl[23],wl[24],wl[32],wl[33],wl[67],wl[68],
+  #      wl[80],wl[93],wl[94],wl[95],wl[105],wl[107],wl[119],
+  #      wl[121],wl[122],wl[128],wl[130],wl[133],wl[140],wl[154],
+  #      wl[165]] # some missing vel & por 
+  #wl = [wl[29],wl[30],wl[32],wl[36],
+  #      wl[47],wl[56],wl[67],wl[79],
+  #      wl[87],wl[91],wl[94],wl[102],wl[109],
+  #      wl[111],wl[123],wl[146],wl[147],wl[155]] #density
   #wl = [wl[  1],wl[ 80],wl[ 90],wl[ 91],wl[ 94],
   #      wl[121],wl[122],wl[123],wl[125],wl[127],
   #      wl[128],wl[130],wl[134],wl[138],wl[139],
   #      wl[146],wl[149],wl[150],wl[151],wl[152],
   #      wl[159],wl[168]]
-  #wl = [wl[  1],wl[  5],wl[ 11],wl[ 12],wl[ 13],
-  #      wl[ 21],wl[ 25],wl[ 26],wl[ 55],wl[ 62],
-  #      wl[ 74],wl[ 78],wl[ 80],wl[ 82],wl[ 85],
-  #      wl[ 86],wl[ 94],wl[100],wl[120],wl[127],
-  #      wl[129],wl[134],wl[138],wl[141],wl[142],
-  #      wl[145],wl[146],wl[151],wl[152]] # all v with p & d
-  #wl = [wl[  5],wl[ 11],wl[ 13],wl[ 21],
-  #      wl[ 62],wl[ 78],wl[ 80],wl[ 82],wl[ 85],
-  #      wl[ 86],wl[ 94],wl[100],wl[120],wl[127],
-  #      wl[134],wl[138],wl[145],wl[151],wl[152]] # all v,p,d
-  #wl = [wl[ 80],wl[ 90],wl[ 94],wl[104],wl[107],
-  #      wl[122],wl[123],wl[124],wl[125],wl[127],
-  #      wl[130],wl[141],wl[147],wl[149],wl[150],
-  #      wl[152],wl[159],wl[168]] # deepest 18 density logs for v,p,d
-  #wl = [wl[  0],wl[  1],wl[  2],wl[  5],wl[  6],
-  #      wl[ 10],wl[ 23],wl[ 36],wl[ 44],wl[ 52],
-  #      wl[116],wl[119],wl[126],wl[134],wl[138],
-  #      wl[145],wl[147],wl[164],wl[165],wl[170],
-  #      wl[172]] 
-  #wl = [wl[  0],wl[  1],wl[  2],wl[  5],wl[  6],
-  #      wl[  8],wl[ 10],wl[116],wl[119],wl[134],
-  #      wl[145],wl[170],wl[172]] 
-        #wl[145],wl[164],wl[165],wl[170],wl[172]] 
-  wl = [wl[ 80],wl[ 94],wl[124],wl[125],wl[127],
-        wl[130],wl[141],wl[147],wl[149],wl[150],
-        wl[152],wl[159],wl[168]] # thesis figs
-  #wl = [wl[141],wl[ 80],wl[124],wl[125],wl[130],wl[159]] # xsection
+  #wl = [wl[ 5],wl[11],wl[16],wl[17],wl[25],
+  #      wl[26],wl[34],wl[35],wl[37],wl[40],
+  #      wl[53],wl[60],wl[68],wl[69],wl[72],
+  #      wl[74],wl[86],wl[88],wl[100],wl[102],
+  #      wl[118],wl[131],wl[134],wl[135],wl[138],
+  #      wl[141],wl[146],wl[169],wl[174],wl[180]] # all velocity logs (v,d,p,g)
+  #wl = [wl[ 5],wl[26],wl[34],wl[35],wl[40],
+  #      wl[60],wl[74],wl[86],wl[102],wl[134],
+  #      wl[141],wl[146],wl[169]] # some logs (v,d,p,g)
   nl = len(wl)
-  nc = len(wl[0])
-  wlw.setPowError(epow)
-  wlw.setMaxShift(350)
+  wlw.setPowError(0.25)
+  wlw.setMaxShift(250)
   s = wlw.findShifts(weights, wl)
   fs = zerofloat(len(wl[0][0]),nl)
   freplace = 2.0
   fclips = (2.0,6.0)
-  mclips = (-0.001,0.1)
   cblabel = "Velocity (km/s)"
-  units = "(km/s)"
-  ltype = "velocity "
-  ltypec = "Velocity "
   s = mul(1000*sz.delta,s) # convert shifts to m
-  mdevs = 0
   for i,c in enumerate(curves):
     for j in range(nl):
       fs[j] = wl[j][i]
@@ -600,41 +674,17 @@ def goShifts():
       if c=="d":
         freplace = 1.0
         fclips = (2.0,2.8)
-        mclips = (-0.001,0.1)
         cblabel = "Density (g/cc)"
-        ltype = "density "
-        ltypec = "Density "
-        units = "(g/cc)"
       if c=="p":
         freplace = 0.0
-        fclips = (0.0,45.0)
-        mclips = (-0.001,10.0)
-        cblabel = "Porosity (%)"
-        ltype = "porosity "
-        ltypec = "Porosity "
-        units = "(%)"
+        fclips = (0.0,0.45)
+        cblabel = "Porosity"
       if c=="g":
-        freplace = 20.0
-        fclips = (20.0,160.0)
-        mclips = (-0.001,0.1)
+        freplace = 30.0
+        fclips = (30.0,160.0)
         cblabel = "Gamma ray (API)"
-        ltype = "gamma ray "
-        ltypec = "Gamma ray "
-        units = "(API)"
-    fmed = wlw.replaceWithMedian(gs)
-    fmad = wlw.replaceWithMAD(gs)
-    mdev = wlw.medianAbsoluteDeviation(gs)
-    print c,"median absolute deviation: ",mdev
-    mdevs += mdev
     fs = wlw.replaceNulls(fs,freplace)
     gs = wlw.replaceNulls(gs,freplace)
-    fmed = wlw.replaceNulls(fmed,freplace)
-    if c=="p":
-      fs = mul(fs,100)
-      gs = mul(gs,100)
-      fmed = mul(fmed,100)
-      fmad = mul(fmad,100)
-    #fmad = abs(sub(fmed,gs))
     sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
     sp.setSize(500,900) # CWPposter
     sp.setVLabel("Depth (km)")
@@ -643,15 +693,11 @@ def goShifts():
     sp.plotPanel.setColorBarWidthMinimum(90)
     pv = sp.addPixels(sz,Sampling(nl,1,1),fs)
     pv.setInterpolation(PixelsView.Interpolation.NEAREST)
-    pv.setColorModel(ajet)
+    pv.setColorModel(cjet)
     pv.setClips(fclips[0],fclips[1])
     #sp.setFontSizeForPrint(12.0,222) #GP newsletter
     #sp.setFontSizeForSlide(1.0,1.0,16.0/9.0)
     #sp.paintToPng(720.0,3.08,c+"before.png")
-    sp.setFontSizeForPrint(8.0,187.6)
-    #sp.paintToPng(720.0,2.6,_pngDir+c+"before.png")
-    #sp.paintToPng(720.0,3.72,_pngDir+c+"before2figs.png")
-
     sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
     sp.setSize(500,900) # CWPposter
     sp.setVLabel("Relative geologic time")
@@ -660,51 +706,11 @@ def goShifts():
     sp.plotPanel.setColorBarWidthMinimum(90)
     pv = sp.addPixels(sz,Sampling(nl,1,1),gs)
     pv.setInterpolation(PixelsView.Interpolation.NEAREST)
-    pv.setColorModel(ajet)
+    pv.setColorModel(cjet)
     pv.setClips(fclips[0],fclips[1])
     #sp.setFontSizeForPrint(12.0,222) #GP newsletter
     #sp.setFontSizeForSlide(1.0,1.0,16.0/9.0)
     #sp.paintToPng(720.0,3.08,c+"after.png")
-    sp.setFontSizeForPrint(8.0,187.6)
-    #sp.paintToPng(720.0,3.72,_pngDir+c+"afterDonly2figs.png")
-    #sp.paintToPng(720.0,3.72,_pngDir+c+"afterStatic.png")
-    #sp.paintToPng(720.0,2.6,_pngDir+c+"afterDonly.png")
-    #sp.paintToPng(720.0,2.6,_pngDir+c+"after.png")
-
-    sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-    sp.setSize(500,900) # CWPposter
-    sp.setVLabel("Relative geologic time")
-    sp.setHLabel("Log index")
-    sp.addColorBar("Median "+ltype+units)
-    sp.plotPanel.setColorBarWidthMinimum(90)
-    pv = sp.addPixels(sz,Sampling(nl,1,1),fmed)
-    pv.setInterpolation(PixelsView.Interpolation.NEAREST)
-    pv.setColorModel(ajet)
-    pv.setClips(fclips[0],fclips[1])
-    #sp.setFontSizeForPrint(12.0,222) #GP newsletter
-    #sp.setFontSizeForSlide(1.0,1.0,16.0/9.0)
-    #sp.paintToPng(720.0,3.08,c+"after.png")
-    sp.setFontSizeForPrint(8.0,187.6)
-    #sp.paintToPng(720.0,2.6,_pngDir+c+"medDonly.png")
-    #sp.paintToPng(720.0,2.6,_pngDir+c+"med.png")
-
-    sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-    sp.setSize(500,900) # CWPposter
-    sp.setVLabel("Relative geologic time")
-    sp.setHLabel("Log index")
-    sp.addColorBar("|"+ltypec+"- median "+ltype+"|")
-    sp.plotPanel.setColorBarWidthMinimum(90)
-    pv = sp.addPixels(sz,Sampling(nl,1,1),fmad)
-    pv.setInterpolation(PixelsView.Interpolation.NEAREST)
-    pv.setColorModel(ajet)
-    pv.setClips(mclips[0],mclips[1])
-    #sp.setFontSizeForPrint(12.0,222) #GP newsletter
-    #sp.setFontSizeForSlide(1.0,1.0,16.0/9.0)
-    #sp.paintToPng(720.0,3.08,c+"after.png")
-    sp.setFontSizeForPrint(8.0,187.6)
-    #sp.paintToPng(720.0,2.6,_pngDir+c+"madDonly.png")
-    #sp.paintToPng(720.0,2.6,_pngDir+c+"mad.png")
-  print "Average MAD: ",mdevs/nc
   """
   sp1 = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   #sp1.setSize(650,550)
@@ -874,6 +880,147 @@ def goHorizon():
   SimplePlot.asPixels(horizon)
   """
 
+def goShifts():
+  sz,fs = resample(logs,curve)
+  #fs = [fs[0],fs[4]]
+  #fs = [fs[ 2],fs[ 3],fs[ 6],fs[ 7],fs[ 8],fs[10],fs[12],
+  #      fs[16],fs[18],fs[21],fs[22],fs[23],fs[24],
+  #      fs[25],fs[26],fs[27],fs[28],fs[29]] # shortest velocity logs
+  #fs = [fs[0],fs[4]]
+  #fs = [fs[0],fs[4],fs[9],fs[14],fs[17],fs[20]] # deepest 6 velocity logs
+  #fs = [fs[0],fs[9]]
+  #fs = [fs[0],fs[4],fs[9],fs[11],fs[14],fs[17],fs[20]]
+  fs = [fs[ 1],fs[ 2],fs[ 3],fs[ 4],fs[ 7],
+        fs[11],fs[21],fs[22],fs[33],fs[35],
+        fs[43],fs[48],fs[50],fs[56],fs[66],
+        fs[81],fs[88],fs[163]] # deepest 18 density logs
+  #fs = [fs[ 6],fs[16],fs[18],fs[31],fs[32],fs[33],fs[36],
+  #      fs[38],fs[48],fs[55],fs[86]] # deepest 11 gamma logs
+  #fs = [fs[16],fs[18],fs[19],fs[28],fs[33],
+  #      fs[34],fs[35],fs[37],fs[38],fs[39],
+  #      fs[45],fs[50],fs[68]] # deepest 13 porosity logs
+  nk,nl = len(fs[0]),len(fs)
+  #wlw.setPowError(0.16)
+  wlw.setPowError(0.25)
+  wlw.setMaxShift(250)
+  s = wlw.findShifts(fs)
+  gs = wlw.applyShifts(fs,s)
+  s = mul(1000*sz.delta,s) # convert shifts to m
+  freplace = 2.0
+  fclips = (2.0,6.0)
+  cblabel = "Velocity (km/s)"
+  if curve=="d":
+    freplace = 1.0
+    fclips = (2.0,2.8)
+    cblabel = "Density (g/cc)"
+  if curve=="p":
+    freplace = 0.0
+    fclips = (0.0,0.45)
+    cblabel = "Porosity"
+  if curve=="g":
+    freplace = 30.0
+    fclips = (30.0,160.0)
+    cblabel = "Gamma ray (API)"
+  sreplace = -250
+  #wlw.replaceNullsS(gs,sreplace,s)
+  fs = wlw.replaceNulls(fs,freplace)
+  gs = wlw.replaceNulls(gs,freplace)
+  sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
+  #sp.setSize(650,550)
+  #sp.setSize(800,500) # CWPposter
+  sp.setSize(700,380) # for slides
+  #sp.setSize(448,874) # for slides - each log
+  #sp.setSize(617,376)
+  sp.setVLabel("Depth (km)")
+  sp.setHLabel("Log index")
+  sp.addColorBar(cblabel)
+  #sp.setVLimits(0.892,1.142)
+  sp.plotPanel.setColorBarWidthMinimum(90)
+  pv = sp.addPixels(sz,Sampling(nl,1,1),fs)
+  pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+  pv.setColorModel(cjet)
+  pv.setClips(fclips[0],fclips[1])
+  #sp.setFontSizeForSlide(9.5/11.0,1.0,16.0/9.0)
+  #sp.setFontSizeForSlide(1.0,1.0,3.0/2.0) #CWPposter
+  #sp.paintToPng(720.0,3.55,"allVlogsSide.png")
+  #sp.paintToPng(720.0,3.55,"original.png")
+  #sp.setFontSizeForPrint(8.0,255.6)
+  #sp.paintToPng(720.0,3.55,"original.png")
+  #sp.setFontSizeForPrint(8.0,234.5)
+  #sp.paintToPng(720.0,3.25,"original.png")
+  sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
+  #sp.setSize(650,508) # zoom & werror
+  sp.setSize(700,380) # for slides
+  #sp.setSize(800,500) # CWPposter
+  #sp.setSize(650,550)
+  #sp.setSize(617,376)
+  #sp.setSize(650,550)
+  sp.setVLabel("Relative geologic time")
+  sp.setHLabel("Log index")
+  #sp.setVLimits(1.25,1.4) # zoom for slides
+  #sp.setVLimits(1.2,1.8) # zoom
+  #sp.setVLimits(1.25,1.45) # zoom SEG slides
+  #sp.setVLimits(0.88,1.05) # werror
+  sp.addColorBar(cblabel)
+  sp.plotPanel.setColorBarWidthMinimum(90)
+  pv = sp.addPixels(sz,Sampling(nl,1,1),gs)
+  #pv.setClips(30,160) # zoom gamma
+  #pv.setClips(2.8,6) # zoom velocity
+  #pv.setClips(2.5,5) # zoom velocity error maybe
+  pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+  pv.setColorModel(cjet)
+  pv.setClips(fclips[0],fclips[1])
+  #sp.setFontSizeForSlide(9.5/11.0,1.0,16.0/9.0)
+  #sp.paintToPng(720.0,3.55,"velocity.png")
+  #pv.setClips(2.5,5.5)
+  #sp.setFontSizeForSlide(1.0,1.0,3.0/2.0) #CWPposter
+  #sp.paintToPng(720.0,3.25,"warpedVLogs.png")
+  #sp.setFontSizeForSlide(9.5/11.0,1.0,16.0/9.0)
+  #sp.paintToPng(720.0,3.25,"warped.png")
+  #sp.setFontSizeForPrint(8.0,234.5)
+  #sp.paintToPng(720.0,3.25,"Vwarped.png")
+  #sp.setFontSizeForPrint(8.0,222.0)
+  #sp.paintToPng(720.0,3.08,"zoomv.png")
+  #sp.paintToPng(720.0,3.08,"werror.png")
+  sp1 = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
+  #sp1.setSize(650,550)
+  sp1.setSize(800,500) # CWPposter
+  sp1.setVLabel("Relative geologic time")
+  sp1.setHLabel("Log index")
+  sp1.addColorBar("Shifts (RGT)")
+  sp1.plotPanel.setColorBarWidthMinimum(90)
+  pv = sp1.addPixels(sz,Sampling(nl,1,1),s)
+  pv.setClips(-150,100)
+  #pv.setClips(-225,175)
+  pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+  pv.setColorModel(cjet)
+  #sp1.setFontSizeForSlide(1.0,1.0,3.0/2.0) #CWPposter
+  #sp1.paintToPng(720.0,3.25,"shifts.png")
+  #sp1.setFontSizeForPrint(8.0,156.3)
+  #sp1.paintToPng(720.0,6.51,"shifts.png")
+
+  
+  """
+  pp = PlotPanel(1,2,PlotPanel.Orientation.X1DOWN_X2RIGHT,PlotPanel.AxesPlacement.LEFT_BOTTOM)
+  #pp = PlotPanel(1,2,PlotPanel.Orientation.X1DOWN_X2RIGHT)
+  pp.setSize(650,550)
+  pp.setVLabel("Depth (km)")
+  pp.setHLabel(0,"Log index")
+  pp.setHLabel(1,"Log index")
+  pp.addColorBar("Velocity (km/s)")
+  pp.setColorBarWidthMinimum(90)
+  pv = pp.addPixels(0,0,sz,Sampling(nl),fs)
+  pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+  pv.setColorModel(cjet)
+  pv.setClips(fclips[0],fclips[1])
+  pv = pp.addPixels(0,1,sz,Sampling(nl),gs)
+  pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+  pv.setColorModel(cjet)
+  pv.setClips(fclips[0],fclips[1])
+  pf = PlotFrame(pp)
+  pf.setVisible(True)
+  pf.setDefaultCloseOperation(PlotFrame.EXIT_ON_CLOSE)
+  """
 
 def goWarping():
   #pairs = [(0,4),(4,9),(9,14),(14,17),(17,20)] # deepest 6 velocity logs
@@ -1298,70 +1445,6 @@ def goResample():
 
 def goSort():
   x,y = [],[]
-  for index,well in enumerate(wells):
-    x.append(well.x2[0])
-    y.append(well.x3[0])
-  seis = readImage()
-  nx = len(seis)
-  ny = len(seis[0])
-  dy = 0.025
-  dx = 0.025
-  sx = Sampling(nx,dx,0.0)
-  sy = Sampling(ny,dx,0.0)
-  ss = zerofloat(ny,nx)
-  for ix in range(nx):
-    for iy in range(ny):
-      ss[ix][iy] = seis[ix][iy][500]
-  sp = SimplePlot()
-  sp.addPixels(sy,sx,ss)
-  sp.setSize(700,380) # for slide
-  sp.setHLabel("Crossline (km)")
-  sp.setVLabel("Inline (km)")
-  #sp.setLimits(0.0,0.0,9.0,4.0)
-  #pv = sp.addPoints(x,y)
-  #pv.setMarkStyle(PointsView.Mark.FILLED_CIRCLE)
-  #pv.setMarkSize(6)
-  """
-  x = [x[127],x[125],x[124],x[147],x[149],
-       x[150],x[152],x[168]] #iline
-  y = [y[127],y[125],y[124],y[147],y[149],
-       y[150],y[152],y[168]] # iline
-  """
-  """
-  x = [x[141],x[ 80],x[124],x[125],x[130],x[159]] # xline
-  y = [y[141],y[ 80],y[124],y[125],y[130],y[159]] # xline
-  pv = sp.addPoints(x,y)
-  pv.setMarkStyle(PointsView.Mark.HOLLOW_CIRCLE)
-  pv.setMarkColor(Color.CYAN)
-  pv.setLineColor(Color.BLUE)
-  pv.setLineWidth(2.0)
-  pv.setMarkSize(10)
-  """
-  x = [x[ 80],x[ 94],x[124],x[127],
-        x[130],x[141],x[150],
-        x[152],x[159],x[168],x[125],x[149],x[147]]
-  y = [y[ 80],y[ 94],y[124],y[127],
-        y[130],y[141],y[150],
-        y[152],y[159],y[168],y[125],y[149],y[147]]
-  for i in range(len(x)):
-    for j in range(i+1,len(x)):
-      x1 = [x[i],x[j]]
-      y1 = [y[i],y[j]]
-      pv = sp.addPoints(x1,y1)
-      pv.setMarkStyle(PointsView.Mark.HOLLOW_CIRCLE)
-      pv.setMarkColor(Color.CYAN)
-      pv.setLineColor(Color.BLUE)
-      pv.setLineWidth(2.0)
-      pv.setMarkSize(10)
-  #sp.setFontSizeForSlide(1.0,1.0,3.0/2.0) # for CWPposter
-  #sp.setFontSizeForSlide(9.5/11.0,1.0,16.0/9.0) # for slide
-  sp.setFontSizeForPrint(8.0,222.0)
-  #sp.paintToPng(720.0,3.08,_pngDir+"xsectionLine.png")
-  #sp.paintToPng(720.0,3.08,_pngDir+"logpairs.png")
-
-"""
-def goSort():
-  x,y = [],[]
   for index,log in enumerate(logs):
     x.append(log.x2[0])
     y.append(log.x3[0])
@@ -1408,6 +1491,15 @@ def goSort():
     pv.setMarkSize(10)
     pv.setMarkColor(Color.RED)
   if curve=="v":
+    """
+    x = [x[0],x[4],x[9],x[14],x[17],x[20]]
+    y = [y[0],y[4],y[9],y[14],y[17],y[20]]
+    pv = sp.addPoints(x,y)
+    pv.setLineStyle(PointsView.Line.NONE)
+    pv.setMarkStyle(PointsView.Mark.FILLED_CIRCLE)
+    pv.setMarkSize(10)
+    pv.setMarkColor(Color.RED)
+    """
     x1 = [x[0],x[4]]
     y1 = [y[0],y[4]]
     pv = sp.addPoints(x1,y1)
@@ -1504,7 +1596,6 @@ def goSort():
   #sp.setFontSizeForPrint(8.0,222.0)
   #sp.paintToPng(720.0,3.08,"sortedmesh.png")
   #sp.paintToPng(720.0,3.08,"allVLogs.png")
-"""
 
 def goMesh():
   mesh = TriMesh()
@@ -1530,43 +1621,34 @@ def goShiftTest():
   f1 = fs[4]
   nt = len(f1)
   ft = 0
-  while(ft<nt and f1[ft]==fnull):
+  while(ft<nt and f1[ft]==-999.2500):
     ft += 1
   lt = nt-1
-  while(lt>=0 and f1[lt]==fnull):
+  while(lt>=0 and f1[lt]==-999.2500):
     lt -= 1
-  nt = 550 
-  #nt = lt-ft+1
-  fl = fillfloat(fnull,nt) 
-  for i in range(ft,501):
-  #for i in range(ft,lt+1):
-    #fl[i-ft] = f1[i]
-    fl[i-ft+50] = f1[i]
+  nt = lt-ft+1
+  fl = zerofloat(nt)
+  for i in range(ft,lt+1):
+    fl[i-ft] = f1[i]
   f1=copy(fl)
   samp = Sampling(nt,sz.delta,0.0)
   sz = samp
     
-  f2 = fillfloat(fnull,nt) 
-  f3 = fillfloat(fnull,nt) 
-  f4 = fillfloat(fnull,nt) 
+  f2 = copy(f1)
+  f3 = zerofloat(nt)
 
-  sh = 100
-  sh2 = -40 
-  for i in range(nt-sh):
-    f3[i+sh] = f1[i] 
-  for i in range(-sh2,nt):
-    f4[i+sh2] = f1[i] 
-  for i in range(nt-sh/2):
-    f2[i-sh2/2] = f1[i] 
-  for i in range(nt+sh2/2,nt):
-    f2[i] = fnull
+  #for i in range(400,600):
+  #  f2[i] = -999.2500
+  for i in range(nt-155):
+    f3[i+155] = f2[i] 
+  for i in range(nt-154,nt):
+    f2[i] = -999.2500
 
-  fs = [f1,f3,f4]
+  fs = [f1,f3]
   fs1 = [f1]
   fs2 = [f3]
-  fs3 = [f4]
-  wl = [fs1,fs2,fs3]
-  fst = [f2,f2,f2]
+  wl = [fs1,fs2]
+  fst = [f1,f2]
   nk,nl = len(fs[0]),len(fs)
   wlw.setPowError(0.25)
   wlw.setMaxShift(250)
@@ -1600,15 +1682,14 @@ def goShiftTest():
   pv.setLineColor(Color.BLACK)
   #pv = pp.addPoints(r,mm) ## to start plotting at first depth
   #pv.setLineColor(Color.PINK)
-  pp.setHLimits(-80,80)
   pf = PlotFrame(pp)
-  pf.setSize(500,900) # CWPposter
+  pf.setSize(664,700) # for slides
   pf.setVisible(True)
   pf.setDefaultCloseOperation(PlotFrame.EXIT_ON_CLOSE)
 
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   #sp.setSize(650,550)
-  sp.setSize(500,900) # for slides
+  sp.setSize(700,380) # for slides
   sp.setVLabel("Depth (km)")
   sp.setHLabel("Log index")
   sp.addColorBar(cblabel)
@@ -1621,7 +1702,7 @@ def goShiftTest():
 
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   #sp.setSize(650,508) # zoom & werror
-  sp.setSize(500,900) # for slides
+  sp.setSize(700,380) # for slides
   sp.setVLabel("Relative geologic time")
   sp.setHLabel("Log index")
   sp.setTitle("Computed alignment")
@@ -1635,8 +1716,8 @@ def goShiftTest():
 
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   #sp.setSize(650,550)
-  sp.setSize(500,900) # for slides
-  sp.setVLabel("Relative geologic time")
+  sp.setSize(700,380) # for slides
+  sp.setVLabel("Depth (km)")
   sp.setHLabel("Log index")
   sp.setTitle("True alignment")
   sp.addColorBar(cblabel)
@@ -1649,7 +1730,7 @@ def goShiftTest():
 
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   #sp.setSize(650,508) # zoom & werror
-  sp.setSize(500,900) # for slides
+  sp.setSize(700,380) # for slides
   sp.setVLabel("Relative geologic time")
   sp.setHLabel("Log index")
   sp.addColorBar("shifts")
@@ -1664,10 +1745,10 @@ def goShiftGapTest():
   f1 = fs[4]
   nt = len(f1)
   ft = 0
-  while(ft<nt and f1[ft]==fnull):
+  while(ft<nt and f1[ft]==-999.2500):
     ft += 1
   lt = nt-1
-  while(lt>=0 and f1[lt]==fnull):
+  while(lt>=0 and f1[lt]==-999.2500):
     lt -= 1
   nt = lt-ft+1
   fl = zerofloat(nt)
@@ -1678,26 +1759,20 @@ def goShiftGapTest():
   sz = samp
     
   f2 = copy(f1)
-  f3 = fillfloat(fnull,nt)
-  f4 = fillfloat(fnull,nt)
+  f3 = zerofloat(nt)
 
-  sh = 150
   for i in range(400,600):
-    f2[i] = fnull
-  for i in range(nt-sh):
-    f3[i+sh] = f2[i] 
-  for i in range(nt-sh):
-    f4[i+sh/2] = f2[i]
-  f2 = copy(f4)
-  f4 = fillfloat(fnull,nt)
-  for i in range(nt-sh/2):
-    f4[i+sh/2] = f1[i]
+    f2[i] = -999.2500
+  for i in range(nt-155):
+    f3[i+155] = f2[i] 
+  for i in range(nt-154,nt):
+    f2[i] = -999.2500
 
   fs = [f1,f3]
   fs1 = [f1]
   fs2 = [f3]
   wl = [fs1,fs2]
-  fst = [f4,f2]
+  fst = [f1,f2]
   nk,nl = len(fs[0]),len(fs)
   wlw.setPowError(0.25)
   wlw.setMaxShift(250)
@@ -1724,12 +1799,12 @@ def goShiftGapTest():
   gs = wlw.replaceNulls(gs,freplace)
 
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-  sp.setSize(500,900) # for slides
+  #sp.setSize(650,550)
+  sp.setSize(700,380) # for slides
   sp.setVLabel("Depth (km)")
   sp.setHLabel("Log index")
   sp.addColorBar(cblabel)
   sp.plotPanel.setColorBarWidthMinimum(90)
-  sp.setTitle("Before alignment")
   #pv = sp.addPixels(sz,Sampling(nl,1,1),fs)
   pv = sp.addPixels(Sampling(nt,1,1),Sampling(nl,1,1),fs)
   pv.setInterpolation(PixelsView.Interpolation.NEAREST)
@@ -1737,7 +1812,8 @@ def goShiftGapTest():
   pv.setClips(fclips[0],fclips[1])
 
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-  sp.setSize(500,900) # for slides
+  #sp.setSize(650,508) # zoom & werror
+  sp.setSize(700,380) # for slides
   sp.setVLabel("Relative geologic time")
   sp.setHLabel("Log index")
   sp.setTitle("Computed alignment")
@@ -1750,7 +1826,8 @@ def goShiftGapTest():
   pv.setClips(fclips[0],fclips[1])
 
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-  sp.setSize(500,900) # for slides
+  #sp.setSize(650,550)
+  sp.setSize(700,380) # for slides
   sp.setVLabel("Depth (km)")
   sp.setHLabel("Log index")
   sp.setTitle("True alignment")
@@ -1763,7 +1840,8 @@ def goShiftGapTest():
   pv.setClips(fclips[0],fclips[1])
 
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-  sp.setSize(500,900) # for slides
+  #sp.setSize(650,508) # zoom & werror
+  sp.setSize(700,380) # for slides
   sp.setVLabel("Relative geologic time")
   sp.setHLabel("Log index")
   sp.addColorBar("shifts")
@@ -1778,10 +1856,10 @@ def goUnconformityTest():
   f1 = fs[4]
   nt = len(f1)
   ft = 0
-  while(ft<nt and f1[ft]==fnull):
+  while(ft<nt and f1[ft]==-999.2500):
     ft += 1
   lt = nt-1
-  while(lt>=0 and f1[lt]==fnull):
+  while(lt>=0 and f1[lt]==-999.2500):
     lt -= 1
   nt = lt-ft+1
   fl = zerofloat(nt)
@@ -1793,32 +1871,23 @@ def goUnconformityTest():
     
   f2 = copy(f1)
   f3 = zerofloat(nt)
-  f4 = fillfloat(fnull,nt)
 
   for i in range(400,600):
-    f2[i] = fnull
+    f2[i] = -999.2500
   for i in range(400):
     f3[i+100] = f2[i] 
   for i in range(599,nt):
     f3[i-100] = f2[i] 
-  for i in range(nt-50):
-    f4[i] = f1[i+50]
   #for i in range(nt-200,nt):
-  #  f2[i] = fnull
+  #  f2[i] = -999.2500
 
   fs = [f1,f3]
-  #fs = [f1,f3,f4]
   fs1 = [f1]
   fs2 = [f3]
-  fs3 = [f4]
   wl = [fs1,fs2]
-  #wl = [fs1,fs2,fs3]
   fst = [f1,f2]
-  #fst = [f1,f2,f1]
-  weights = [1.0]
-  epow = [0.25]
   nk,nl = len(fs[0]),len(fs)
-  wlw.setPowError(epow)
+  wlw.setPowError(0.25)
   wlw.setMaxShift(250)
   #s = wlw.findShifts(fs)
   s = wlw.findShifts(weights, wl)
@@ -1842,25 +1911,11 @@ def goUnconformityTest():
   fs = wlw.replaceNulls(fs,freplace)
   gs = wlw.replaceNulls(gs,freplace)
 
-  pp = PlotPanel(PlotPanel.Orientation.X1DOWN_X2RIGHT)
-  r = rampfloat(0.0,1.0,nt)
-  pv = pp.addPoints(r,s[1]) ## to start plotting at first depth
-  pv.setLineColor(Color.RED)
-  pv = pp.addPoints(r,s[0]) ## to start plotting at first depth
-  pv.setLineColor(Color.BLACK)
-  #pv = pp.addPoints(r,mm) ## to start plotting at first depth
-  #pv.setLineColor(Color.PINK)
-  pp.setHLimits(-150,150)
-  pf = PlotFrame(pp)
-  pf.setSize(500,900) # CWPposter
-  pf.setVisible(True)
-  pf.setDefaultCloseOperation(PlotFrame.EXIT_ON_CLOSE)
-
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-  sp.setSize(500,900) # for slides
+  #sp.setSize(650,550)
+  sp.setSize(700,380) # for slides
   sp.setVLabel("Depth (km)")
   sp.setHLabel("Log index")
-  sp.setTitle("Before alignment")
   sp.addColorBar(cblabel)
   sp.plotPanel.setColorBarWidthMinimum(90)
   #pv = sp.addPixels(sz,Sampling(nl,1,1),fs)
@@ -1870,7 +1925,8 @@ def goUnconformityTest():
   pv.setClips(fclips[0],fclips[1])
 
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-  sp.setSize(500,900) # for slides
+  #sp.setSize(650,508) # zoom & werror
+  sp.setSize(700,380) # for slides
   sp.setVLabel("Relative geologic time")
   sp.setHLabel("Log index")
   sp.setTitle("Computed alignment")
@@ -1883,7 +1939,8 @@ def goUnconformityTest():
   pv.setClips(fclips[0],fclips[1])
 
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-  sp.setSize(500,900) # for slides
+  #sp.setSize(650,550)
+  sp.setSize(700,380) # for slides
   sp.setVLabel("Depth (km)")
   sp.setHLabel("Log index")
   sp.setTitle("True alignment")
@@ -1896,7 +1953,8 @@ def goUnconformityTest():
   pv.setClips(fclips[0],fclips[1])
 
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-  sp.setSize(500,900) # for slides
+  #sp.setSize(650,508) # zoom & werror
+  sp.setSize(700,380) # for slides
   sp.setVLabel("Relative geologic time")
   sp.setHLabel("Log index")
   sp.addColorBar("shifts")
@@ -1905,81 +1963,6 @@ def goUnconformityTest():
   #pv = sp.addPixels(sz,Sampling(nl,1,1),s)
   pv.setInterpolation(PixelsView.Interpolation.NEAREST)
   pv.setColorModel(cjet)
-  """
-
-
-
-
-  f = fs
-  pairs = [(0,1)]
-  wlw.setPowError(epow)
-  wlw.setMaxShift(250)
-  for pair in pairs:
-    ia,ib = pair[0],pair[1]
-    e = wlw.computeErrors(0,f[ia],f[ib])
-    wlw.interpolateOddErrors(e)
-    nl,nk = len(e[0]),len(e)
-    lmax = (nl-1)/2
-    lmin = -lmax
-    maxerr = max(e)
-    #maxerr = -100000000
-    norme = zerofloat(nl,nk)
-    for k in range(nk):
-      for l in range(nl):
-        norme[k][l] = e[k][l]/maxerr
-    sl = Sampling(nl,1,lmin)
-    sk = Sampling(nk,1,0)
-    title = "("+str(ia)+","+str(ib)+")"
-    sp = SimplePlot()
-    sp.setSize(910,700) #big
-    sp.setTitle(title)
-    sp.setHLabel("Depth index k")
-    sp.setVLabel("Lag index l")
-    sp.setHFormat("%5f")
-    sp.addColorBar("e[k,l]")
-    #pv = sp.addPixels(sk,sl,transpose(norme))
-    pv = sp.addPixels(sk,sl,transpose(e))
-    #pv.setColorModel(cjet)
-    pv.setInterpolation(PixelsView.Interpolation.NEAREST)
-    #pv.setPercentiles(0,100)
-    sp1 = SimplePlot()
-    sp1.setSize(910,700)
-    sp1.setTitle(title)
-    sp1.setHLabel("Depth index k")
-    sp1.setVLabel("Lag index l")
-    sp1.setHFormat("%5f")
-    sp1.addColorBar("e[k,l]")
-    #pv = sp1.addPixels(sk,sl,transpose(norme))
-    pv = sp1.addPixels(sk,sl,transpose(e))
-    #pv.setColorModel(cjet)
-    pv.setInterpolation(PixelsView.Interpolation.NEAREST)
-    #pv.setPercentiles(0,100)
-    d = wlw.accumulateErrors(e)
-    wlw.interpolateOddErrors(d)
-    kw,lw = wlw.findWarping(d)
-    kw = wlw.toFloat(kw)
-    lw = wlw.toFloat(lw)
-    pv1 = sp1.addPoints(kw,lw)
-    pv1.setLineColor(Color.RED)
-    #pv1.setLineStyle(PointsView.Line.DASH)
-    pv1.setLineWidth(1.0)
-
-    sp = SimplePlot()
-    sp.setSize(750,500)
-    sp.setTitle(title)
-    sp.setHLabel("Depth index k")
-    sp.setVLabel("Lag index l")
-    sp.setHFormat("%5f")
-    pv = sp.addPixels(sk,sl,transpose(d))
-    #pv.setColorModel(cjet)
-    pv.setInterpolation(PixelsView.Interpolation.NEAREST)
-    pv.setPercentiles(0,90)
-    kw,lw = wlw.findWarping(d)
-    kw = wlw.toFloat(kw)
-    lw = wlw.toFloat(lw)
-    pv = sp.addPoints(kw,lw)
-    pv.setLineColor(Color.WHITE)
-  """
 
 def goCreateLog():
   el = 1000 # end sample of short log
@@ -1987,10 +1970,10 @@ def goCreateLog():
   f1 = fs[4]
   nt = len(f1)
   ft = 0
-  while(ft<nt and f1[ft]==fnull):
+  while(ft<nt and f1[ft]==-999.2500):
     ft += 1
   lt = nt-1
-  while(lt>=0 and f1[lt]==fnull):
+  while(lt>=0 and f1[lt]==-999.2500):
     lt -= 1
   nt = lt-ft+1
   fl = zerofloat(nt)
@@ -2027,7 +2010,7 @@ def goCreateLog():
   #for t in range(500,nt-70):
     #f2[t] = f2[t+70]
   #for t in range(el,el+200):
-    #f3[t] = fnull
+    #f3[t] = -999.2500
   for t in range(nt):
     r21[t] = -r2[t]#+r1[t]
     r31[t] = -r3[t]#+r1[t]
@@ -2346,18 +2329,64 @@ def goCreateLog():
 
   """
 
-def goOutputLogFile():
-  sz,wl = resampleMulti(wells,curves)
-  wl = [wl[ 80],wl[ 94],wl[124],wl[125],wl[127],
-        wl[130],wl[141],wl[147],wl[149],wl[150],
-        wl[152],wl[159],wl[168]] # thesis figs
-  nl = len(wl)
-  nc = len(wl[0])
-  for i,c in enumerate(curves):
-    fs = zerofloat(len(wl[0][0]),nl)
-    for j in range(nl):
-      fs[j] = wl[j][i]
-    writeFile(c,fs)
+def goSVD():
+  sz,fs = resample(logs,curve)
+  fs = [fs[0],fs[4],fs[9],fs[14],fs[17],fs[20]] # deepest 6 velocity logs
+  nk,nl = len(fs[0]),len(fs)
+
+  f1 = zerofloat(300)
+  f2 = zerofloat(300)
+  f3 = zerofloat(300)
+  f4 = zerofloat(300)
+  f5 = zerofloat(300)
+  f6 = zerofloat(300)
+
+  fk = 700
+  lk = 1000
+  nk = lk-fk
+  for k in range(fk,lk):
+    f1[k-fk] = fs[0][k]
+    f2[k-fk] = fs[1][k]
+    f3[k-fk] = fs[2][k]
+    f4[k-fk] = fs[3][k]
+    f5[k-fk] = fs[4][k]
+    f6[k-fk] = fs[5][k]
+
+  fs = [f1, f2, f3, f4, f5, f6]
+
+
+  wlw.setPowError(0.25)
+  wlw.setMaxShift(250)
+  s = wlw.findShifts(fs)
+  #gs = wlw.applyShifts(fs,s)
+  #s = mul(1000*sz.delta,s) # convert shifts to m
+  freplace = 2.0
+  fclips = (2.0,6.0)
+  cblabel = "Velocity (km/s)"
+  if curve=="d":
+    freplace = 1.0
+    fclips = (2.0,2.8)
+    cblabel = "Density (g/cc)"
+  if curve=="p":
+    freplace = 0.0
+    fclips = (0.0,0.45)
+    cblabel = "Porosity"
+  if curve=="g":
+    freplace = 30.0
+    fclips = (30.0,160.0)
+    cblabel = "Gamma ray (API)"
+  fs = wlw.replaceNulls(fs,freplace)
+  #gs = wlw.replaceNulls(gs,freplace)
+  sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
+  sp.setSize(800,500) # CWPposter
+  sp.setVLabel("Depth (km)")
+  sp.setHLabel("Log index")
+  sp.addColorBar(cblabel)
+  sp.plotPanel.setColorBarWidthMinimum(90)
+  pv = sp.addPixels(Sampling(nk,1,1),Sampling(nl,1,1),fs)
+  pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+  pv.setColorModel(cjet)
+  pv.setClips(fclips[0],fclips[1])
   
 
 #############################################################################
@@ -2367,7 +2396,7 @@ _tpDir = "/data/seis/tpd/"
 _csmDir = _tpDir+"csm/"
 _wellLogsDir = _csmDir+"welllogs/"
 _seismicLogsDir = _csmDir+"seismicz/"
-_pngDir = "/Users/lwheeler/Documents/01_School/01_Grad/04_Research/png/raw/"
+_pngDir = "/Users/lwheeler/Documents/01_School/01_Grad/04_Research/png/"
   
 def getWells(set,curves):
   vlogs = False
@@ -2572,12 +2601,12 @@ def getWellIntersections(set,type,x1):
 def fgood(f):
   n = len(f)
   for i in range(n):
-    if f[i]!=fnull:
+    if f[i]!=-999.2500:
       return i
 def lgood(f):
   n = len(f)
   for i in range(n):
-    if f[n-1-i]!=fnull:
+    if f[n-1-i]!=-999.2500:
       return n-1-i
 
 def normalizeByMedian(type,curves,wl):
@@ -2589,13 +2618,13 @@ def normalizeByMedian(type,curves,wl):
       for j in range(nl):
         nn = 0
         for k in range(nk):
-          if (wl[j][i][k]!=fnull):
+          if (wl[j][i][k]!=-999.2500):
             nn += 1
         mf = MedianFinder(nn)
         temp = zerofloat(nn)
         nn = 0
         for k in range(nk):
-          if (wl[j][i][k]!=fnull):
+          if (wl[j][i][k]!=-999.2500):
             temp[nn] = wl[j][i][k]
             nn += 1
         med[j] = mf.findMedian(temp)
@@ -2605,7 +2634,7 @@ def normalizeByMedian(type,curves,wl):
       for j in range(nl):
         sc = avm/med[j]
         for k in range(nk):
-          if (wl[j][i][k] != fnull):
+          if (wl[j][i][k] != -999.2500):
             wl[j][i][k] *= sc
 
 def readImage():
@@ -2634,27 +2663,15 @@ def removeZeros(f):
   ft = copy(c,fs)
   return i,ft
 
-def writeFile(c,va):
+def writeFile(va):
   nz = len(va[0])
   nl = len(va)
-  ofile = open('../data/'+c+'logs.txt','r+')
-  ofile.write('z'     +'\t'+'log 1' +'\t'+'log 2' +'\t'+
-              'log 3' +'\t'+'log 4' +'\t'+'log 5' +'\t'+
-              'log 6' +'\t'+'log 7' +'\t'+'log 8' +'\t'+
-              'log 9' +'\t'+'log 10'+'\t'+'log 11'+'\t'+
-              'log 12'+'\t'+'log 13'+'\t'+'\n')
-  ofile.write('~A\n')
+  ofile = open('vlogs.txt','r+')
   for z in range(nz):
     ofile.write(str(z)+'\t'+str(va[0][z])+'\t'+str(va[1][z])+'\t'+
                 str(va[2][z])+'\t'+str(va[3][z])+'\t'+str(va[4][z])+'\t'+
-                str(va[5][z])+'\t'+str(va[6][z])+'\t'+str(va[7][z])+'\t'+
-                str(va[8][z])+'\t'+str(va[9][z])+'\t'+str(va[10][z])+'\t'+
-                str(va[11][z])+'\t'+str(va[12][z])+'\t'+'\n')
+                str(va[5][z])+'\n')
   ofile.close()
-
-
-def dist(x1,y1,x2,y2):
-  return sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1))
 
 
 
