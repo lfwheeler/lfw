@@ -1463,7 +1463,7 @@ public class WellLogWarping {
       float tae = 0;
       for (int kz=0; kz<np; ++kz) 
         tae += error(wl[il][m][is[kz]],wl[jl][m][js[kz]],m);
-      ws = tae>0 ? np*pow(np/tae,1.0f/_epower[m]) : 1.0f; 
+      ws = tae>0 ? np*pow(np/tae,2.0f/_epower[m]) : 1.0f; 
       ps[lp].ws = ws;
       wsum[m] += ws;
       ls[il] += 1;
