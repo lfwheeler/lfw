@@ -1333,7 +1333,7 @@ public class WellLogWarping {
   {
     int nt = x[0].length; // number of depths
     int nl = x.length; // number of logs
-    wp /= nl;
+    wp = 400;
     for (int il=0; il<nl; ++il) {
       float[] xi = x[il];
       float[] yi = y[il];
