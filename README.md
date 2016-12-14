@@ -35,5 +35,5 @@ A demo for using WellLogWarping.java is included in wlwDemo.py. Data to be used 
 
 If you have data that you want to run through the existing scripts, modify the methods that deal with extracting the data or feel free to create your own method.
 
-If you have any questions, please do not hesitate to contact me at lwheeler@mines.edu.
+If you have any questions, please do not hesitate to contact me at lwheeler465@gmail.com.
 ########################################################################################
